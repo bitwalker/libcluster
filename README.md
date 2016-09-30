@@ -1,6 +1,6 @@
 # libcluster
 
-[![Hex.pm Version](http://img.shields.io/hexpm/v/swarm.svg?style=flat)](https://hex.pm/packages/libcluster)
+[![Hex.pm Version](http://img.shields.io/hexpm/v/libcluster.svg?style=flat)](https://hex.pm/packages/libcluster)
 
 This library provides a mechanism for automatically forming clusters of Erlang nodes, with
 either static or dynamic node membership. It provides a publish/subscribe mechanism for cluster
