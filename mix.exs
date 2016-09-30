@@ -1,4 +1,4 @@
-defmodule Libcluster.Mixfile do
+defmodule Cluster.Mixfile do
   use Mix.Project
 
   def project do
