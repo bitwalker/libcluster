@@ -15,7 +15,7 @@ View the docs [here](https://hexdocs.pm/libcluster).
 - automatic cluster formation/healing
 - choice of multiple clustering strategies out of the box:
   - standard Distributed Erlang facilities (i.e. epmd)
-  - multicase UDP gossip, using a configurable port/multicast address,
+  - multicast UDP gossip, using a configurable port/multicast address,
   - the Kubernetes API, via a configurable pod selector and node basename.
 - provide your own clustering strategies (e.g. an EC2 strategy, etc.)
 - easy pubsub for cluster events
@@ -24,7 +24,7 @@ View the docs [here](https://hexdocs.pm/libcluster).
 
 You have three choices with regards to cluster management. You can use the built-in Erlang tooling for connecting
 nodes, by setting `strategy: Cluster.Strategy.Epmd` in the config. If set to `Cluster.Strategy.Gossip` it will make use of
-the multicase gossip protocol to dynamically form a cluster. If set to `Cluster.Strategy.Kubernetes`, it will use the 
+the multicast gossip protocol to dynamically form a cluster. If set to `Cluster.Strategy.Kubernetes`, it will use the 
 Kubernetes API to query endpoints based on a basename and label selector, using the token and namespace injected into
 every pod; once it has a list of endpoints, it uses that list to form a cluster, and keep it up to date.
 
@@ -46,7 +46,7 @@ following config settings:
 
 ```elixir
 config :libcluster,
-  strategy: Cluster.Strategy.Epmd,
+  strategy: Cluster.Strategy.Gossip,
   port: 45892,
   if_addr: {0,0,0,0},
   multicast_addr: {230,1,1,251},
@@ -83,6 +83,9 @@ You can subscribe/unsubscribe a process to cluster events with `Cluster.Events.s
 
 - `{:nodeup, node}` - when a node is connected, the node name is an atom
 - `{:nodedown, node}` - same as above, but occurs when a node is disconnected
+
+Events are sent to subscribers with `Kernel.send/2`, so if subscribing a `gen_*` process, you'll receive
+them via the `handle_info/2` callback.
 
 ## License
 
