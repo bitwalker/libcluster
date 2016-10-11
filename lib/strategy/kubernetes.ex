@@ -31,7 +31,7 @@ defmodule Cluster.Strategy.Kubernetes do
     for n <- removed do
       info "disconnected from #{inspect n}"
     end
-    Cluster.Strategy.connect_nodes(added)
+    Cluster.Strategy.connect_nodes(MapSet.to_list(added))
     Process.send_after(self(), :load, 5_000)
     {:noreply, new_nodelist}
   end
