@@ -99,6 +99,10 @@ defmodule Cluster.Events do
             loop(subscribers, parent, debug)
         end
       {:publish, event} = msg ->
+        debug = handle_debug(debug, {:out, msg})
+        for node <- Node.list(), do: send({__MODULE__, node}, {:receive, event})
+        loop(subscribers, parent, debug)
+      {:receive, event} = msg ->
         debug = handle_debug(debug, {:in, msg})
         for {pid, _} <- subscribers, do: send(pid, event)
         loop(subscribers, parent, debug)
