@@ -24,7 +24,7 @@ View the docs [here](https://hexdocs.pm/libcluster).
 
 You have three choices with regards to cluster management. You can use the built-in Erlang tooling for connecting
 nodes, by setting `strategy: Cluster.Strategy.Epmd` in the config. If set to `Cluster.Strategy.Gossip` it will make use of
-the multicast gossip protocol to dynamically form a cluster. If set to `Cluster.Strategy.Kubernetes`, it will use the 
+the multicast gossip protocol to dynamically form a cluster. If set to `Cluster.Strategy.Kubernetes`, it will use the
 Kubernetes API to query endpoints based on a basename and label selector, using the token and namespace injected into
 every pod; once it has a list of endpoints, it uses that list to form a cluster, and keep it up to date.
 
@@ -35,7 +35,7 @@ strategy as an OTP process (i.e. `GenServer`) is the ideal method, however any v
 the strategy process as part of it's supervision tree.
 
 Currently it's required that strategies connect nodes via the Erlang distribution protocol, i.e. with `Node.connect/1`,
-`:net_adm.connect_node/1`, etc. In the future I plan on supporting alternate methods of clustering, but it's still unclear
+`:net_kernel.connect_node/1`, etc. In the future I plan on supporting alternate methods of clustering, but it's still unclear
 on how to properly do so.
 
 ### Clustering Strategies
@@ -57,9 +57,9 @@ config :libcluster,
 ```
 
 The Kubernetes strategy works by querying the Kubernetes API for all endpoints in the same namespace which match the provided
-selector, and getting the container IPs associated with them. Once all of the matching IPs have been found, it will attempt to 
-establish node connections using the format `<kubernetes_node_basename>@<endpoint ip>`. You must make sure that your nodes are 
-configured to use longnames, that the hostname matches the `kubernetes_node_basename` setting, and that the domain matches the 
+selector, and getting the container IPs associated with them. Once all of the matching IPs have been found, it will attempt to
+establish node connections using the format `<kubernetes_node_basename>@<endpoint ip>`. You must make sure that your nodes are
+configured to use longnames, that the hostname matches the `kubernetes_node_basename` setting, and that the domain matches the
 IP address. Configuration might look like so:
 
 ```elixir
@@ -79,7 +79,7 @@ And in vm.args:
 ## Cluster Events
 
 You can subscribe/unsubscribe a process to cluster events with `Cluster.Events.subscribe(pid)` and
-`cluster.Events.unsubscribe(pid)`. Currently, only two events are published to subscribers:
+`Cluster.Events.unsubscribe(pid)`. Currently, only two events are published to subscribers:
 
 - `{:nodeup, node}` - when a node is connected, the node name is an atom
 - `{:nodedown, node}` - same as above, but occurs when a node is disconnected
