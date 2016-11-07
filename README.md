@@ -3,10 +3,12 @@
 [![Hex.pm Version](http://img.shields.io/hexpm/v/libcluster.svg?style=flat)](https://hex.pm/packages/libcluster)
 
 This library provides a mechanism for automatically forming clusters of Erlang nodes, with
-either static or dynamic node membership. It provides a publish/subscribe mechanism for cluster
-events so that you can easily be notified when cluster members join or leave, and provides a
-pluggable "strategy" system, with multicast UDP gossip, Kubernetes, and EPMD strategies all provided
-out of the box.
+either static or dynamic node membership. Once connected, the nodes communicate as usual
+using the Erlang distribution.
+
+`libcluster` supports multicast UDP gossip, Kubernetes, and EPMD strategies out of the box.
+EPMD is the default strategy in the VM, which requires nodes to be explicitly connected via
+`Node.conenct/1`.
 
 View the docs [here](https://hexdocs.pm/libcluster).
 
@@ -33,10 +35,6 @@ You can provide your own clustering strategy by setting `strategy: MyApp.Strateg
 to start a process as part of your strategy, but since it's very likely you will need to maintain some state, designing your
 strategy as an OTP process (i.e. `GenServer`) is the ideal method, however any valid OTP process will work. `libcluster` starts
 the strategy process as part of it's supervision tree.
-
-Currently it's required that strategies connect nodes via the Erlang distribution protocol, i.e. with `Node.connect/1`,
-`:net_kernel.connect_node/1`, etc. In the future I plan on supporting alternate methods of clustering, but it's still unclear
-on how to properly do so.
 
 ### Clustering Strategies
 
