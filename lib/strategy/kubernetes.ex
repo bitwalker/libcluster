@@ -8,35 +8,72 @@ defmodule Cluster.Strategy.Kubernetes do
   It assumes that all nodes share a base name, are using longnames, and are unique
   based on their FQDN, rather than the base hostname. In other words, in the following
   longname, `<basename>@<domain>`, `basename` would be the value configured in
+
+  An example configuration is below:
+
+
+      config :libcluster,
+        topologies: [
+          k8s_example: [
+            strategy: #{__MODULE__},
+            strategy_opts: [
+              kubernetes_node_basename: "myapp",
+              kubernetes_selector: "app=myapp",
+              polling_interval: 10_000]]]
+
   """
   use GenServer
   use Cluster.Strategy
   import Cluster.Logger
 
+  alias Cluster.Strategy.State
+
+  @default_polling_interval 5_000
   @kubernetes_master    "kubernetes.default.svc.cluster.local"
   @service_account_path "/var/run/secrets/kubernetes.io/serviceaccount"
 
-  def start_link(), do: GenServer.start_link(__MODULE__, [], name: __MODULE__)
-  def init(_) do
-    {:ok, MapSet.new([]), 0}
+  def start_link(opts), do: GenServer.start_link(__MODULE__, [opts])
+  def init(opts) do
+    state = %State{
+      topology: Keyword.fetch!(opts, :topology),
+      connect: Keyword.fetch!(opts, :connect),
+      disconnect: Keyword.fetch!(opts, :disconnect),
+      config: Keyword.fetch!(opts, :config),
+      meta: MapSet.new([])
+    }
+    {:ok, state, 0}
   end
 
-  def handle_info(:timeout, nodelist) do
-    handle_info(:load, nodelist)
+  def handle_info(:timeout, state) do
+    handle_info(:load, state)
   end
-  def handle_info(:load, nodelist) do
-    new_nodelist = MapSet.new(get_nodes())
-    added        = MapSet.difference(new_nodelist, nodelist)
-    removed      = MapSet.difference(nodelist, new_nodelist)
-    for n <- removed do
-      info "disconnected from #{inspect n}"
-    end
-    Cluster.Strategy.connect_nodes(MapSet.to_list(added))
-    Process.send_after(self(), :load, 5_000)
-    {:noreply, new_nodelist}
+  def handle_info(:load, %State{topology: topology, connect: connect, disconnect: disconnect} = state) do
+    new_nodelist = MapSet.new(get_nodes(state))
+    added        = MapSet.difference(new_nodelist, state.meta)
+    removed      = MapSet.difference(state.meta, new_nodelist)
+    new_nodelist = case Cluster.Strategy.disconnect_nodes(topology, disconnect, MapSet.to_list(removed)) do
+                :ok ->
+                  new_nodelist
+                {:error, bad_nodes} ->
+                  # Add back the nodes which should have been removed, but which couldn't be for some reason
+                  Enum.reduce(bad_nodes, new_nodelist, fn {n, _}, acc ->
+                    MapSet.put(acc, n)
+                  end)
+              end
+    new_nodelist = case Cluster.Strategy.connect_nodes(topology, connect, MapSet.to_list(added)) do
+              :ok ->
+                new_nodelist
+              {:error, bad_nodes} ->
+                # Remove the nodes which should have been added, but couldn't be for some reason
+                Enum.reduce(bad_nodes, new_nodelist, fn {n, _}, acc ->
+                  MapSet.delete(acc, n)
+                end)
+            end
+    Process.send_after(self(), :load, Keyword.get(state.config, :polling_interval, @default_polling_interval))
+    {:noreply, %{state | :meta => new_nodelist}}
   end
-  def handle_info(_, nodelist) do
-    {:noreply, nodelist}
+  def handle_info(_, state) do
+    {:noreply, state}
   end
 
   @spec get_token() :: String.t
@@ -57,8 +94,8 @@ defmodule Cluster.Strategy.Kubernetes do
     end
   end
 
-  @spec get_nodes() :: [atom()]
-  defp get_nodes() do
+  @spec get_nodes(State.t) :: [atom()]
+  defp get_nodes(%State{topology: topology}) do
     token     = get_token()
     namespace = get_namespace()
     app_name = Application.get_env(:libcluster, :kubernetes_node_basename)
@@ -91,23 +128,23 @@ defmodule Cluster.Strategy.Kubernetes do
             end
           {:ok, {{_version, 403, _status}, _headers, body}} ->
             %{"message" => msg} = Poison.decode!(body)
-            warn "cannot query kubernetes (unauthorized): #{msg}"
+            warn topology, "cannot query kubernetes (unauthorized): #{msg}"
             []
           {:ok, {{_version, code, status}, _headers, body}} ->
-            warn "cannot query kubernetes (#{code} #{status}): #{inspect body}"
+            warn topology, "cannot query kubernetes (#{code} #{status}): #{inspect body}"
             []
           {:error, reason} ->
-            error "request to kubernetes failed!: #{inspect reason}"
+            error topology, "request to kubernetes failed!: #{inspect reason}"
             []
         end
       app_name == nil ->
-        warn "kubernetes strategy is selected, but :kubernetes_node_basename is not configured!"
+        warn topology, "kubernetes strategy is selected, but :kubernetes_node_basename is not configured!"
         []
       selector == nil ->
-        warn "kubernetes strategy is selected, but :kubernetes_selector is not configured!"
+        warn topology, "kubernetes strategy is selected, but :kubernetes_selector is not configured!"
         []
       :else ->
-        warn "kubernetes strategy is selected, but is not configured!"
+        warn topology, "kubernetes strategy is selected, but is not configured!"
         []
     end
   end

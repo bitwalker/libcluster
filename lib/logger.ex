@@ -2,10 +2,10 @@ defmodule Cluster.Logger do
   @moduledoc false
   require Logger
 
-  def debug(msg), do: log(:debug, msg)
-  def info(msg),  do: log(:info, msg)
-  def warn(msg),  do: log(:warn, msg)
-  def error(msg), do: log(:error, msg)
+  def debug(t, msg), do: log(:debug, t, msg)
+  def info(t, msg),  do: log(:info, t, msg)
+  def warn(t, msg),  do: log(:warn, t, msg)
+  def error(t, msg), do: log(:error, t, msg)
 
-  defp log(level, msg), do: Logger.log(level, "[libcluster] #{msg}")
+  defp log(t, level, msg), do: Logger.log(level, "[libcluster:#{t}] #{msg}")
 end

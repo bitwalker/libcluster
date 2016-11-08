@@ -18,25 +18,55 @@ View the docs [here](https://hexdocs.pm/libcluster).
   - multicast UDP gossip, using a configurable port/multicast address,
   - the Kubernetes API, via a configurable pod selector and node basename.
 - provide your own clustering strategies (e.g. an EC2 strategy, etc.)
-- easy pubsub for cluster events
+- provide your own topology plumbing (e.g. something other than standard Erlang distribution)
+
+## An example configuration
+
+The following will help you understand the more descriptive text below. The configuration
+for libcluster can also be described as a spec for the clustering topologies and strategies
+which will be used.
+
+```elixir
+config :libcluster,
+  topologies: [
+    example: [
+      # The selected clustering strategy. Required.
+      strategy: Cluster.Strategy.Epmd,
+      # Configuration for the provided strategy. Optional.
+      config: [hosts: [:"a@127.0.0.1", :"b@127.0.0.1"]],
+      # The function to use for connecting nodes. The node
+      # name will be appended to the argument list. Optional
+      connect: {:net_kernel, :connect, []},
+      # The function to use for disconnecting nodes. The node
+      # name will be appended to the argument list. Optional
+      disconnect: {:net_kernel, :disconnect, []},
+      # A list of options for the supervisor child spec
+      # of the selected strategy. Optional
+      opts: [restart: :transient]
+    ]
+  ]
+```
+
 
 ## Clustering
 
-You have three choices with regards to cluster management. You can use the built-in Erlang tooling for connecting
+You have three choices with regards to cluster management out of the box. You can use the built-in Erlang tooling for connecting
 nodes, by setting `strategy: Cluster.Strategy.Epmd` in the config. If set to `Cluster.Strategy.Gossip` it will make use of
 the multicast gossip protocol to dynamically form a cluster. If set to `Cluster.Strategy.Kubernetes`, it will use the
 Kubernetes API to query endpoints based on a basename and label selector, using the token and namespace injected into
 every pod; once it has a list of endpoints, it uses that list to form a cluster, and keep it up to date.
 
 You can provide your own clustering strategy by setting `strategy: MyApp.Strategy` where `MyApp.Strategy` implements the
-`Cluster.Strategy` behaviour, which currently consists of exporting a `start_link/0` callback. You don't necessarily have
+`Cluster.Strategy` behaviour, which currently consists of exporting a `start_link/1` callback. You don't necessarily have
 to start a process as part of your strategy, but since it's very likely you will need to maintain some state, designing your
 strategy as an OTP process (i.e. `GenServer`) is the ideal method, however any valid OTP process will work. `libcluster` starts
 the strategy process as part of it's supervision tree.
 
-Currently it's required that strategies connect nodes via the Erlang distribution protocol, i.e. with `Node.connect/1`,
-`:net_kernel.connect_node/1`, etc. In the future I plan on supporting alternate methods of clustering, but it's still unclear
-on how to properly do so.
+If you do not wish to use the default Erlang distribution protocol, you may provide an alternative means of connecting/
+disconnecting nodes via the `connect` and `disconnect` configuration options. They take a `{module, fun, args}` tuple,
+and append the node name being targeted to the `args` list. How to implement distribution in this way is left as an
+exercise for the reader, but I recommend taking a look at the [Firenest](https://github.com/phoenixframework/firenest) project
+currently under development.
 
 ### Clustering Strategies
 
@@ -46,14 +76,17 @@ following config settings:
 
 ```elixir
 config :libcluster,
-  strategy: Cluster.Strategy.Gossip,
-  port: 45892,
-  if_addr: {0,0,0,0},
-  multicast_addr: {230,1,1,251},
-  # a TTL of 1 remains on the local network,
-  # use this to change the number of jumps the
-  # multicast packets will make
-  multicast_ttl: 1
+  topologies: [
+    gossip_example: [
+      strategy: Cluster.Strategy.Gossip,
+      config: [
+        port: 45892,
+        if_addr: {0,0,0,0},
+        multicast_addr: {230,1,1,251},
+        # a TTL of 1 remains on the local network,
+        # use this to change the number of jumps the
+        # multicast packets will make
+        multicast_ttl: 1]]]
 ```
 
 The Kubernetes strategy works by querying the Kubernetes API for all endpoints in the same namespace which match the provided
@@ -64,9 +97,12 @@ IP address. Configuration might look like so:
 
 ```elixir
 config :libcluster,
-  strategy: Cluster.Strategy.Kubernetes,
-  kubernetes_selector: "app=myapp",
-  kubernetes_node_basename: "myapp"
+  topologies: [
+    k8s_example: [
+      strategy: Cluster.Strategy.Kubernetes,
+      config: [
+        kubernetes_selector: "app=myapp",
+        kubernetes_node_basename: "myapp"]]]
 ```
 
 And in vm.args:
@@ -75,17 +111,6 @@ And in vm.args:
 -name myapp@10.128.0.9
 -setcookie test
 ```
-
-## Cluster Events
-
-You can subscribe/unsubscribe a process to cluster events with `Cluster.Events.subscribe(pid)` and
-`Cluster.Events.unsubscribe(pid)`. Currently, only two events are published to subscribers:
-
-- `{:nodeup, node}` - when a node is connected, the node name is an atom
-- `{:nodedown, node}` - same as above, but occurs when a node is disconnected
-
-Events are sent to subscribers with `Kernel.send/2`, so if subscribing a `gen_*` process, you'll receive
-them via the `handle_info/2` callback.
 
 ## License
 

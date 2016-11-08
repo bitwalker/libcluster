@@ -1,6 +1,22 @@
-# This file is responsible for configuring your application
-# and its dependencies with the aid of the Mix.Config module.
+# This file is provided as an example of how to configure libcluster in your own apps
 use Mix.Config
 
 config :libcluster,
-  strategy: Cluster.Strategy.Epmd
+  # You can start clustering for one or more topologies.
+  topologies: [
+    example: [
+      # The selected clustering strategy. Required.
+      strategy: Cluster.Strategy.Epmd,
+      # Options for the provided strategy. Optional.
+      strategy_opts: [],
+      # The function to use for connecting nodes. The node
+      # name will be appended to the argument list. Optional
+      connect: {:net_kernel, :connect, []},
+      # The function to use for disconnecting nodes. The node
+      # name will be appended to the argument list. Optional
+      disconnect: {:net_kernel, :disconnect, []},
+      # A list of options for the supervisor child spec
+      # of the selected strategy. Optional
+      opts: []
+    ]
+  ]
