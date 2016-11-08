@@ -66,7 +66,7 @@ If you do not wish to use the default Erlang distribution protocol, you may prov
 disconnecting nodes via the `connect` and `disconnect` configuration options. They take a `{module, fun, args}` tuple,
 and append the node name being targeted to the `args` list. How to implement distribution in this way is left as an
 exercise for the reader, but I recommend taking a look at the [Firenest](https://github.com/phoenixframework/firenest) project
-currently under development.
+currently under development. By default, the Erlang distribution is used.
 
 ### Clustering Strategies
 
