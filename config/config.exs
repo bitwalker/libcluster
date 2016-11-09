@@ -8,7 +8,7 @@ config :libcluster,
       # The selected clustering strategy. Required.
       strategy: Cluster.Strategy.Epmd,
       # Options for the provided strategy. Optional.
-      strategy_opts: [],
+      config: [],
       # The function to use for connecting nodes. The node
       # name will be appended to the argument list. Optional
       connect: {:net_kernel, :connect, []},
@@ -17,6 +17,6 @@ config :libcluster,
       disconnect: {:net_kernel, :disconnect, []},
       # A list of options for the supervisor child spec
       # of the selected strategy. Optional
-      opts: []
+      child_spec: []
     ]
   ]

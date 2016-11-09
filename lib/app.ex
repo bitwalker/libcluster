@@ -18,7 +18,7 @@ defmodule Cluster.App do
       config         = Keyword.get(spec, :config, [])
       connect_mfa    = Keyword.get(spec, :connect, {:net_kernel, :connect, []})
       disconnect_mfa = Keyword.get(spec, :disconnect, {:net_kernel, :disconnect, []})
-      opts           = Keyword.get(spec, :opts, [])
+      opts           = Keyword.get(spec, :child_spec, [])
       worker_args = [[
         topology: topology,
         connect: connect_mfa,

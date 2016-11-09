@@ -9,7 +9,7 @@ defmodule Cluster.Strategy.Epmd do
         topologies: [
           epmd_example: [
             strategy: #{__MODULE__},
-            strategy_opts: [
+            config: [
               hosts: [:"a@127.0.0.1", :"b@127.0.0.1"]]]]
 
   """

@@ -42,7 +42,7 @@ config :libcluster,
       disconnect: {:net_kernel, :disconnect, []},
       # A list of options for the supervisor child spec
       # of the selected strategy. Optional
-      opts: [restart: :transient]
+      child_spec: [restart: :transient]
     ]
   ]
 ```

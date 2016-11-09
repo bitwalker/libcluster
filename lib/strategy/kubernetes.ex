@@ -16,7 +16,7 @@ defmodule Cluster.Strategy.Kubernetes do
         topologies: [
           k8s_example: [
             strategy: #{__MODULE__},
-            strategy_opts: [
+            config: [
               kubernetes_node_basename: "myapp",
               kubernetes_selector: "app=myapp",
               polling_interval: 10_000]]]

@@ -19,7 +19,7 @@ defmodule Cluster.Strategy.Gossip do
         topologies: [
           gossip_example: [
             strategy: #{__MODULE__},
-            strategy_opts: [
+            config: [
               port: 45892,
               if_addr: "0.0.0.0",
               multicast_addr: "230.1.1.251",
