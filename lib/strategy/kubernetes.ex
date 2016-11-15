@@ -116,8 +116,11 @@ defmodule Cluster.Strategy.Kubernetes do
                   %{"subsets" => []}, acc ->
                     acc
                   %{"subsets" => subsets}, acc ->
-                    addrs = Enum.flat_map(subsets, fn %{"addresses" => addresses} ->
-                      Enum.map(addresses, fn %{"ip" => ip} -> :"#{app_name}@#{ip}" end)
+                    addrs = Enum.flat_map(subsets, fn
+                      %{"addresses" => addresses} ->
+                        Enum.map(addresses, fn %{"ip" => ip} -> :"#{app_name}@#{ip}" end)
+                      _ ->
+                        []
                     end)
                     acc ++ addrs
                   _, acc ->
