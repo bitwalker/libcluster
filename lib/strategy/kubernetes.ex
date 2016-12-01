@@ -32,7 +32,7 @@ defmodule Cluster.Strategy.Kubernetes do
   @kubernetes_master    "kubernetes.default.svc.cluster.local"
   @service_account_path "/var/run/secrets/kubernetes.io/serviceaccount"
 
-  def start_link(opts), do: GenServer.start_link(__MODULE__, [opts])
+  def start_link(opts), do: GenServer.start_link(__MODULE__, opts)
   def init(opts) do
     state = %State{
       topology: Keyword.fetch!(opts, :topology),
@@ -95,11 +95,11 @@ defmodule Cluster.Strategy.Kubernetes do
   end
 
   @spec get_nodes(State.t) :: [atom()]
-  defp get_nodes(%State{topology: topology}) do
+  defp get_nodes(%State{topology: topology, config: config}) do
     token     = get_token()
     namespace = get_namespace()
-    app_name = Application.get_env(:libcluster, :kubernetes_node_basename)
-    selector = Application.get_env(:libcluster, :kubernetes_selector)
+    app_name = Keyword.fetch!(config, :kubernetes_node_basename)
+    selector = Keyword.fetch!(config, :kubernetes_selector)
     cond do
       app_name != nil and selector != nil ->
         selector = URI.encode(selector)
