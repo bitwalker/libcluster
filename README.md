@@ -20,6 +20,14 @@ View the docs [here](https://hexdocs.pm/libcluster).
 - provide your own clustering strategies (e.g. an EC2 strategy, etc.)
 - provide your own topology plumbing (e.g. something other than standard Erlang distribution)
 
+## Installation
+
+```elixir
+defp deps do
+  [{:libcluster, "~> 2.0"}]
+end
+```
+
 ## An example configuration
 
 The following will help you understand the more descriptive text below. The configuration
