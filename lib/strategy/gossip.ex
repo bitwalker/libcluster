@@ -38,7 +38,7 @@ defmodule Cluster.Strategy.Gossip do
   @default_multicast_addr {230,1,1,251}
 
   def start_link(opts) do
-    GenServer.start_link(__MODULE__, [opts])
+    GenServer.start_link(__MODULE__, opts)
   end
 
   def init(opts) do
