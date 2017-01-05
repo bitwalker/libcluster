@@ -8,7 +8,7 @@ defmodule Cluster.Mixfile do
      build_embedded: Mix.env == :prod,
      start_permanent: Mix.env == :prod,
      description: "Automatic Erlang cluster formation and management for Elixir/Erlang applications",
-     package: package,
+     package: package(),
      docs: docs(),
      deps: deps(),
      dialyzer: [
