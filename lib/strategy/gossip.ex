@@ -49,14 +49,9 @@ defmodule Cluster.Strategy.Gossip do
       config: Keyword.fetch!(opts, :config)
     }
     port = Keyword.get(state.config, :port, @default_port)
-    ip   = Keyword.get(state.config, :if_addr, @default_addr)
+    ip   = Keyword.get(state.config, :if_addr, @default_addr) |> sanitize_ip
     ttl  = Keyword.get(state.config, :multicast_ttl, 1)
-    multicast_addr = case Keyword.get(state.config, :multicast_addr, @default_multicast_addr) do
-                       {_a,_b,_c,_d} = ip -> ip
-                       ip when is_binary(ip) ->
-                         {:ok, addr} = :inet.parse_ipv4_address(~c"#{ip}")
-                         addr
-                     end
+    multicast_addr = Keyword.get(state.config, :multicast_addr, @default_multicast_addr) |> sanitize_ip
     {:ok, socket} = :gen_udp.open(port, [
           :binary,
           active: true,
@@ -69,6 +64,15 @@ defmodule Cluster.Strategy.Gossip do
         ])
     state = %{state | :meta => {multicast_addr, port, socket}}
     {:ok, state, 0}
+  end
+
+  defp sanitize_ip(input) do
+    case input do
+      {_a,_b,_c,_d} = ip -> ip
+      ip when is_binary(ip) ->
+        {:ok, addr} = :inet.parse_ipv4_address(~c"#{ip}")
+        addr
+    end
   end
 
   # Send stuttered heartbeats
