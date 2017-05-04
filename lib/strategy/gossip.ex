@@ -46,6 +46,7 @@ defmodule Cluster.Strategy.Gossip do
       topology: Keyword.fetch!(opts, :topology),
       connect: Keyword.fetch!(opts, :connect),
       disconnect: Keyword.fetch!(opts, :disconnect),
+      list_nodes: Keyword.fetch!(opts, :list_nodes),
       config: Keyword.fetch!(opts, :config)
     }
     port = Keyword.get(state.config, :port, @default_port)
@@ -105,11 +106,11 @@ defmodule Cluster.Strategy.Gossip do
   # If the connection fails, it's likely because the cookie
   # is different, and thus a node we can ignore
   @spec handle_heartbeat(State.t, binary) :: :ok
-  defp handle_heartbeat(%State{connect: connect} = state, <<"heartbeat::", rest::binary>>) do
+  defp handle_heartbeat(%State{connect: connect, list_nodes: list_nodes} = state, <<"heartbeat::", rest::binary>>) do
     case :erlang.binary_to_term(rest) do
       %{node: n} when is_atom(n) ->
         debug state.topology, "received heartbeat from #{n}"
-        Cluster.Strategy.connect_nodes(state.topology, connect, [n])
+        Cluster.Strategy.connect_nodes(state.topology, connect, list_nodes, [n])
         :ok
       _ ->
         :ok

@@ -38,6 +38,7 @@ defmodule Cluster.Strategy.Kubernetes do
       topology: Keyword.fetch!(opts, :topology),
       connect: Keyword.fetch!(opts, :connect),
       disconnect: Keyword.fetch!(opts, :disconnect),
+      list_nodes: Keyword.fetch!(opts, :list_nodes),
       config: Keyword.fetch!(opts, :config),
       meta: MapSet.new([])
     }
@@ -47,11 +48,11 @@ defmodule Cluster.Strategy.Kubernetes do
   def handle_info(:timeout, state) do
     handle_info(:load, state)
   end
-  def handle_info(:load, %State{topology: topology, connect: connect, disconnect: disconnect} = state) do
+  def handle_info(:load, %State{topology: topology, connect: connect, disconnect: disconnect, list_nodes: list_nodes} = state) do
     new_nodelist = MapSet.new(get_nodes(state))
     added        = MapSet.difference(new_nodelist, state.meta)
     removed      = MapSet.difference(state.meta, new_nodelist)
-    new_nodelist = case Cluster.Strategy.disconnect_nodes(topology, disconnect, MapSet.to_list(removed)) do
+    new_nodelist = case Cluster.Strategy.disconnect_nodes(topology, disconnect, list_nodes, MapSet.to_list(removed)) do
                 :ok ->
                   new_nodelist
                 {:error, bad_nodes} ->
@@ -60,7 +61,7 @@ defmodule Cluster.Strategy.Kubernetes do
                     MapSet.put(acc, n)
                   end)
               end
-    new_nodelist = case Cluster.Strategy.connect_nodes(topology, connect, MapSet.to_list(added)) do
+    new_nodelist = case Cluster.Strategy.connect_nodes(topology, connect, list_nodes, MapSet.to_list(added)) do
               :ok ->
                 new_nodelist
               {:error, bad_nodes} ->

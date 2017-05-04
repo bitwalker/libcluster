@@ -24,7 +24,7 @@ View the docs [here](https://hexdocs.pm/libcluster).
 
 ```elixir
 defp deps do
-  [{:libcluster, "~> 2.0"}]
+  [{:libcluster, "~> 2.1"}]
 end
 ```
 
@@ -48,6 +48,9 @@ config :libcluster,
       # The function to use for disconnecting nodes. The node
       # name will be appended to the argument list. Optional
       disconnect: {:net_kernel, :disconnect, []},
+      # The function to use for listing nodes. 
+      # This function must return a list of node names. Optional
+      list_nodes: {:erlang, :nodes, [:connected]},
       # A list of options for the supervisor child spec
       # of the selected strategy. Optional
       child_spec: [restart: :transient]
@@ -71,8 +74,8 @@ strategy as an OTP process (i.e. `GenServer`) is the ideal method, however any v
 the strategy process as part of it's supervision tree.
 
 If you do not wish to use the default Erlang distribution protocol, you may provide an alternative means of connecting/
-disconnecting nodes via the `connect` and `disconnect` configuration options. They take a `{module, fun, args}` tuple,
-and append the node name being targeted to the `args` list. How to implement distribution in this way is left as an
+disconnecting nodes via the `connect` and `disconnect` configuration options, if not using Erlang distribution you must provide a `list_nodes` implementation as well. 
+They take a `{module, fun, args}` tuple, and append the node name being targeted to the `args` list. How to implement distribution in this way is left as an
 exercise for the reader, but I recommend taking a look at the [Firenest](https://github.com/phoenixframework/firenest) project
 currently under development. By default, the Erlang distribution is used.
 

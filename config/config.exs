@@ -15,6 +15,10 @@ config :libcluster,
       # The function to use for disconnecting nodes. The node
       # name will be appended to the argument list. Optional
       disconnect: {:net_kernel, :disconnect, []},
+      # The function to use for listing nodes. The `:connected` option
+      # will always be passed as the first argument.
+      # Uses `:erlang.nodes([:connected])` by default. Optional
+      list_nodes: {:erlang, :nodes, [:connected]},
       # A list of options for the supervisor child spec
       # of the selected strategy. Optional
       child_spec: []
