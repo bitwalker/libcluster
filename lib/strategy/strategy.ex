@@ -107,7 +107,7 @@ defmodule Cluster.Strategy do
   end
 
   def difference(a, []), do: a
-  def difference([], b), do: b
+  def difference([], b), do: []
   def difference(a, b) when is_list(a) and is_list(b) do
     a |> MapSet.new |> MapSet.difference(MapSet.new(b))
   end
