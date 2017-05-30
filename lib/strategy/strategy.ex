@@ -100,14 +100,14 @@ defmodule Cluster.Strategy do
     end
   end
 
-  def intersection(a, []), do: a
-  def intersection([], b), do: b
+  def intersection(_a, []), do: []
+  def intersection([], _b), do: []
   def intersection(a, b) when is_list(a) and is_list(b) do
     a |> MapSet.new |> MapSet.intersection(MapSet.new(b))
   end
 
-  def difference(a, []), do: a
-  def difference([], b), do: b
+  def difference(a, []),  do: a
+  def difference([], _b), do: []
   def difference(a, b) when is_list(a) and is_list(b) do
     a |> MapSet.new |> MapSet.difference(MapSet.new(b))
   end
