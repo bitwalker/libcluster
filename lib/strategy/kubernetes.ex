@@ -2,12 +2,40 @@ defmodule Cluster.Strategy.Kubernetes do
   @moduledoc """
   This clustering strategy works by loading all pods in the current Kubernetes
   namespace with the configured tag. It will fetch the addresses of all pods with
-  that tag and attempt to connect. It will continually monitor and update it's
+  that tag and attempt to connect. It will continually monitor and update its
   connections every 5s.
+
 
   It assumes that all nodes share a base name, are using longnames, and are unique
   based on their FQDN, rather than the base hostname. In other words, in the following
   longname, `<basename>@<domain>`, `basename` would be the value configured in
+
+  <domain> can be either of type :ip (the pod's ip, can be obtained by setting an env
+  variable to status.podIP) or :dns, which is the pod's internal A Record.
+  This A Record has the format <ip-with-dashes>.<namespace>.pod.cluster.local, e.g
+  1-2-3-4.default.pod.cluster.local.
+
+  Getting :ip to work requires a bit fiddling in the container's CMD, for example:
+
+  ```yaml
+  # deployment.yaml
+  command: ["sh", -c"]
+  args: ["POD_A_RECORD"]
+  args: ["export POD_A_RECORD=$(echo $POD_IP | sed 's/\./-/g') && /app/bin/app foreground"]
+  ```
+
+  ```
+  # vm.args
+  -name app@<%= "${POD_A_RECORD}.${NAMESPACE}.pod.cluster.local" %>
+  ```
+
+  (in an app running as a Distillery release).
+
+  The benefit of using :dns over :ip is that you can establish a remote shell (as well as
+  run observer) by using `kubectl port-forward` in combination with some entries in `/etc/hosts`.
+
+
+  Defaults to :ip.
 
   An example configuration is below:
 
@@ -17,6 +45,7 @@ defmodule Cluster.Strategy.Kubernetes do
           k8s_example: [
             strategy: #{__MODULE__},
             config: [
+              mode: :ip,
               kubernetes_node_basename: "myapp",
               kubernetes_selector: "app=myapp",
               polling_interval: 10_000]]]
@@ -109,27 +138,7 @@ defmodule Cluster.Strategy.Kubernetes do
         http_options   = [ssl: [verify: :verify_none]]
         case :httpc.request(:get, {'https://#{@kubernetes_master}/#{endpoints_path}', headers}, http_options, []) do
           {:ok, {{_version, 200, _status}, _headers, body}} ->
-            case Poison.decode!(body) do
-              %{"items" => []} ->
-                []
-              %{"items" => items} ->
-                Enum.reduce(items, [], fn
-                  %{"subsets" => []}, acc ->
-                    acc
-                  %{"subsets" => subsets}, acc ->
-                    addrs = Enum.flat_map(subsets, fn
-                      %{"addresses" => addresses} ->
-                        Enum.map(addresses, fn %{"ip" => ip} -> :"#{app_name}@#{ip}" end)
-                      _ ->
-                        []
-                    end)
-                    acc ++ addrs
-                  _, acc ->
-                    acc
-                end)
-              _ ->
-                []
-            end
+            parse_response(Keyword.get(config, :mode, :ip), app_name, Poison.decode!(body))
           {:ok, {{_version, 403, _status}, _headers, body}} ->
             %{"message" => msg} = Poison.decode!(body)
             warn topology, "cannot query kubernetes (unauthorized): #{msg}"
@@ -153,4 +162,56 @@ defmodule Cluster.Strategy.Kubernetes do
     end
   end
 
+  defp parse_response(:ip, app_name, resp) do
+    case resp do
+      %{"items" => []} ->
+        []
+      %{"items" => items} ->
+        Enum.reduce(items, [], fn
+          %{"subsets" => []}, acc ->
+            acc
+          %{"subsets" => subsets}, acc ->
+            addrs = Enum.flat_map(subsets, fn
+              %{"addresses" => addresses} ->
+                Enum.map(addresses, fn %{"ip" => ip} -> :"#{app_name}@#{ip}" end)
+              _ ->
+                []
+            end)
+            acc ++ addrs
+          _, acc ->
+            acc
+        end)
+      _ ->
+        []
+    end
+  end
+
+  defp parse_response(:dns, app_name, resp) do
+    case resp do
+      %{"items" => []} ->
+        []
+      %{"items" => items} ->
+        Enum.reduce(items, [], fn
+          %{"subsets" => []}, acc ->
+            acc
+          %{"subsets" => subsets}, acc ->
+            addrs = Enum.flat_map(subsets, fn
+          %{"addresses" => addresses} ->
+            Enum.map(addresses, fn %{"ip" => ip, "targetRef" => %{"namespace" => namespace}} -> format_dns_record(app_name, ip, namespace) end)
+          _ ->
+            []
+        end)
+          acc ++ addrs
+          _, acc ->
+            acc
+        end)
+      _ ->
+        []
+    end
+  end
+
+  defp format_dns_record(app_name, ip, namespace) do
+    ip = String.replace(ip, ".", "-")
+    :"#{app_name}@#{ip}.#{namespace}.pod.cluster.local"
+  end
 end
