@@ -16,7 +16,7 @@ View the docs [here](https://hexdocs.pm/libcluster).
 - choice of multiple clustering strategies out of the box:
   - standard Distributed Erlang facilities (i.e. epmd)
   - multicast UDP gossip, using a configurable port/multicast address,
-  - the Kubernetes API, via a configurable pod selector and node basename.
+  - the Kubernetes API, via a configurable label selector and node basename.
 - provide your own clustering strategies (e.g. an EC2 strategy, etc.)
 - provide your own topology plumbing (e.g. something other than standard Erlang distribution)
 
