@@ -1,21 +1,26 @@
 defmodule Cluster.Strategy.Kubernetes do
   @moduledoc """
-  This clustering strategy works by loading all pods in the current Kubernetes
-  namespace with the configured tag. It will fetch the addresses of all pods with
-  that tag and attempt to connect. It will continually monitor and update its
+  This clustering strategy works by loading all endpoints in the current Kubernetes
+  namespace with the configured label. It will fetch the addresses of all endpoints with
+  that label and attempt to connect. It will continually monitor and update its
   connections every 5s.
 
+  In order for your endpoints to be found they should be returned when you run:
+
+  `kubectl get endpoints -l app=myapp`
 
   It assumes that all nodes share a base name, are using longnames, and are unique
   based on their FQDN, rather than the base hostname. In other words, in the following
   longname, `<basename>@<domain>`, `basename` would be the value configured in
+  `kubernetes_node_basename`.
 
-  <domain> can be either of type :ip (the pod's ip, can be obtained by setting an env
-  variable to status.podIP) or :dns, which is the pod's internal A Record.
-  This A Record has the format <ip-with-dashes>.<namespace>.pod.cluster.local, e.g
+  `domain` would be the value configured in `mode` and can be either of type `:ip`
+  (the pod's ip, can be obtained by setting an env variable to status.podIP) or
+  `:dns`, which is the pod's internal A Record. This A Record has the format
+  `<ip-with-dashes>.<namespace>.pod.cluster.local`, e.g
   1-2-3-4.default.pod.cluster.local.
 
-  Getting :ip to work requires a bit fiddling in the container's CMD, for example:
+  Getting `:ip` to work requires a bit fiddling in the container's CMD, for example:
 
   ```yaml
   # deployment.yaml
@@ -31,11 +36,11 @@ defmodule Cluster.Strategy.Kubernetes do
 
   (in an app running as a Distillery release).
 
-  The benefit of using :dns over :ip is that you can establish a remote shell (as well as
+  The benefit of using `:dns` over `:ip` is that you can establish a remote shell (as well as
   run observer) by using `kubectl port-forward` in combination with some entries in `/etc/hosts`.
 
 
-  Defaults to :ip.
+  Defaults to `:ip`.
 
   An example configuration is below:
 
