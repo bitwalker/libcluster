@@ -17,7 +17,7 @@ defmodule Cluster.Mixfile do
   end
 
   def application do
-    [applications: [:logger, :inets, :poison],
+    [applications: [:logger, :inets, :poison, :crypto, :ssl],
      mod: {Cluster.App, []}]
   end
 
