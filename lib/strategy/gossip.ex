@@ -107,7 +107,10 @@ defmodule Cluster.Strategy.Gossip do
   # is different, and thus a node we can ignore
   @spec handle_heartbeat(State.t, binary) :: :ok
   defp handle_heartbeat(%State{connect: connect, list_nodes: list_nodes} = state, <<"heartbeat::", rest::binary>>) do
+    self = node()
     case :erlang.binary_to_term(rest) do
+      %{node: ^self} ->
+        :ok
       %{node: n} when is_atom(n) ->
         debug state.topology, "received heartbeat from #{n}"
         Cluster.Strategy.connect_nodes(state.topology, connect, list_nodes, [n])
