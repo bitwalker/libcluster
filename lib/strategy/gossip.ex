@@ -7,7 +7,7 @@ defmodule Cluster.Strategy.Gossip do
   magic cookie. In this way, a cluster of nodes may be formed dynamically.
 
   The gossip protocol is extremely simple, with a prelude followed by the node
-  name which sent the packet. The node name is paresed from the packet, and a
+  name which sent the packet. The node name is parsed from the packet, and a
   connection attempt is made. It will fail if the two nodes do not share a cookie.
 
   By default, the gossip occurs on port 45892, using the multicast address 230.1.1.251
