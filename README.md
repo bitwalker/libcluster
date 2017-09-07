@@ -17,6 +17,7 @@ View the docs [here](https://hexdocs.pm/libcluster).
   - standard Distributed Erlang facilities (i.e. epmd)
   - multicast UDP gossip, using a configurable port/multicast address,
   - the Kubernetes API, via a configurable label selector and node basename.
+  - the [Rancher Metadata API][rancher-api]
 - provide your own clustering strategies (e.g. an EC2 strategy, etc.)
 - provide your own topology plumbing (e.g. something other than standard Erlang distribution)
 
@@ -61,11 +62,13 @@ config :libcluster,
 
 ## Clustering
 
-You have three choices with regards to cluster management out of the box. You can use the built-in Erlang tooling for connecting
+You have four choices with regards to cluster management out of the box. You can use the built-in Erlang tooling for connecting
 nodes, by setting `strategy: Cluster.Strategy.Epmd` in the config. If set to `Cluster.Strategy.Gossip` it will make use of
 the multicast gossip protocol to dynamically form a cluster. If set to `Cluster.Strategy.Kubernetes`, it will use the
 Kubernetes API to query endpoints based on a basename and label selector, using the token and namespace injected into
-every pod; once it has a list of endpoints, it uses that list to form a cluster, and keep it up to date.
+every pod; once it has a list of endpoints, it uses that list to form a cluster, and keep it up to date. If set to
+`Cluster.Strategy.Rancher` it uses the [Rancher Metadata API][rancher-api] to form a cluster of nodes, from containers
+running under the same service.
 
 You can provide your own clustering strategy by setting `strategy: MyApp.Strategy` where `MyApp.Strategy` implements the
 `Cluster.Strategy` behaviour, which currently consists of exporting a `start_link/1` callback. You don't necessarily have
@@ -123,6 +126,22 @@ And in vm.args:
 -setcookie test
 ```
 
+The Rancher strategy follows the steps of the Kubernetes one. It queries the [Rancher Metadata API][rancher-api] for the
+IPs associated with the running containers of the service that the node making the HTTP request belongs to. You must
+make sure that your nodes are configured to use longnames like :"<name>@<ip>" where the `nname` must be the same
+as the `node_basename` config option of the topology and the `ip` must match the one assigned to the container of the
+node by Rancher.
+
+```elixir
+config :libcluster,
+  topologies: [
+    rancher_example: [
+      strategy: Cluster.Strategy.Rancher,
+      config: [node_basename: "myapp"]]]
+```
+
 ## License
 
 MIT
+
+[rancher-api]: http://rancher.com/docs/rancher/latest/en/rancher-services/metadata-service/

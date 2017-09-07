@@ -1,3 +1,9 @@
+## Unreleased
+
+### Added
+
+- Clustering strategy for the Rancher container platform (see: https://github.com/rancher/rancher)
+
 ## 2.0.0
 
 ### Added
