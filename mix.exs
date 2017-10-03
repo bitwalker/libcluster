@@ -17,13 +17,14 @@ defmodule Cluster.Mixfile do
   end
 
   def application do
-    [applications: [:logger, :inets, :poison, :crypto, :ssl],
+    [applications: [:logger, :inets, :poison, :crypto, :ssl, :httpoison],
      mod: {Cluster.App, []}]
   end
 
   defp deps do
     [{:ex_doc, "~> 0.13", only: :dev},
      {:dialyxir, "~> 0.3", only: :dev},
+     {:httpoison, "~> 0.13"},
      {:poison, "~> 3.0"}]
   end
 
