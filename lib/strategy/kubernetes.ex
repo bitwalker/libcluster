@@ -24,7 +24,7 @@ defmodule Cluster.Strategy.Kubernetes do
 
   ```yaml
   # deployment.yaml
-  command: ["sh", -c"]
+  command: ["sh", "-c"]
   args: ["POD_A_RECORD"]
   args: ["export POD_A_RECORD=$(echo $POD_IP | sed 's/\./-/g') && /app/bin/app foreground"]
   ```
