@@ -15,6 +15,7 @@ View the docs [here](https://hexdocs.pm/libcluster).
 - automatic cluster formation/healing
 - choice of multiple clustering strategies out of the box:
   - standard Distributed Erlang facilities (i.e. epmd)
+  - Distributed Erlang via a `.hosts.erlang` file
   - multicast UDP gossip, using a configurable port/multicast address,
   - the Kubernetes API, via a configurable label selector and node basename.
   - the [Rancher Metadata API][rancher-api]
@@ -62,13 +63,13 @@ config :libcluster,
 
 ## Clustering
 
-You have four choices with regards to cluster management out of the box. You can use the built-in Erlang tooling for connecting
-nodes, by setting `strategy: Cluster.Strategy.Epmd` in the config. If set to `Cluster.Strategy.Gossip` it will make use of
-the multicast gossip protocol to dynamically form a cluster. If set to `Cluster.Strategy.Kubernetes`, it will use the
-Kubernetes API to query endpoints based on a basename and label selector, using the token and namespace injected into
-every pod; once it has a list of endpoints, it uses that list to form a cluster, and keep it up to date. If set to
-`Cluster.Strategy.Rancher` it uses the [Rancher Metadata API][rancher-api] to form a cluster of nodes, from containers
-running under the same service.
+You have five choices with regards to cluster management out of the box. You can use the built-in Erlang tooling for connecting
+nodes, by setting `strategy: Cluster.Strategy.Epmd` in the config. You can use a .erlang.hosts file by setting
+`strategy: Cluster.Strategy.ErlangHosts` If set to `Cluster.Strategy.Gossip` it will make use of the multicast gossip protocol
+to dynamically form a cluster. If set to `Cluster.Strategy.Kubernetes`, it will use the Kubernetes API to query endpoints based
+on a basename and label selector, using the token and namespace injected into every pod; once it has a list of endpoints, it
+uses that list to form a cluster, and keep it up to date. If set to `Cluster.Strategy.Rancher` it uses the
+[Rancher Metadata API][rancher-api] to form a cluster of nodes, from containers running under the same service.
 
 You can provide your own clustering strategy by setting `strategy: MyApp.Strategy` where `MyApp.Strategy` implements the
 `Cluster.Strategy` behaviour, which currently consists of exporting a `start_link/1` callback. You don't necessarily have
@@ -83,6 +84,32 @@ exercise for the reader, but I recommend taking a look at the [Firenest](https:/
 currently under development. By default, the Erlang distribution is used.
 
 ### Clustering Strategies
+
+The `ErlangHosts` strategy relies on having a `.erlang.hosts` file in one of the following locations as specified in
+http://erlang.org/doc/man/net_adm.html#files:
+
+ > File `.hosts.erlang` consists of a number of host names written as Erlang terms. It is looked for in the current work
+ > directory, the user's home directory, and $OTP_ROOT (the root directory of Erlang/OTP), in that order.
+
+ #Example:
+
+```erlang
+'super.eua.ericsson.se'.
+'renat.eua.ericsson.se'.
+'grouse.eua.ericsson.se'.
+'gauffin1.eua.ericsson.se'.
+^ (new line)
+```
+
+This can be configured using the following settings:
+
+```elixir
+config :libcluster,
+  topologies: [
+    erlang_hosts_example: [
+      strategy: Cluster.Strategy.ErlangHosts}]]
+```
+
 
 The gossip protocol works by multicasting a heartbeat via UDP. The default configuration listens on all host interfaces,
 port 45892, and publishes via the multicast address `230.1.1.251`. These parameters can all be changed via the
