@@ -14,7 +14,7 @@ defmodule Cluster.App do
     import Supervisor.Spec, warn: false
     Application.get_env(:libcluster, :topologies, [])
     |> Enum.filter(&filter_for_applied_topologies(&1, Application.get_env(:libcluster, :applied_topologies)))
-    |> Enum.each(fn({topology, spec}) ->
+    |> Enum.map(fn({topology, spec}) ->
       strategy       = Keyword.fetch!(spec, :strategy)
       config         = Keyword.get(spec, :config, [])
       connect_mfa    = Keyword.get(spec, :connect, {:net_kernel, :connect, []})
