@@ -13,7 +13,7 @@ defmodule Cluster.App do
   defp get_child_specs() do
     import Supervisor.Spec, warn: false
     Application.get_env(:libcluster, :topologies, [])
-    |> Enum.filter(&filter_for_applied_topologies(&1, Application.get_env(:libcluster, :applied_topologies)))
+    |> Enum.filter(&whitelisted_topologies_filter(&1, Application.get_env(:libcluster, :whitelisted_topologies)))
     |> Enum.map(fn({topology, spec}) ->
       strategy       = Keyword.fetch!(spec, :strategy)
       config         = Keyword.get(spec, :config, [])
@@ -32,6 +32,6 @@ defmodule Cluster.App do
     end)
   end
 
-  defp filter_for_applied_topologies(_, nil), do: true
-  defp filter_for_applied_topologies({topology, _spec}, applied_topologies), do: topology in applied_topologies
+  defp whitelisted_topologies_filter(_, nil), do: true
+  defp whitelisted_topologies_filter({topology, _spec}, whitelisted_topologies), do: topology in whitelisted_topologies
 end
