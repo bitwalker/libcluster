@@ -2,6 +2,8 @@
 use Mix.Config
 
 config :libcluster,
+  # You can cherry pick specific topologies 
+  applied_topologies: [:example],
   # You can start clustering for one or more topologies.
   topologies: [
     example: [

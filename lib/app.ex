@@ -12,8 +12,9 @@ defmodule Cluster.App do
 
   defp get_child_specs() do
     import Supervisor.Spec, warn: false
-    specs = Application.get_env(:libcluster, :topologies, [])
-    for {topology, spec} <- specs do
+    Application.get_env(:libcluster, :topologies, [])
+    |> Enum.filter(&filter_for_applied_topologies(&1, Application.get_env(:libcluster, :applied_topologies)))
+    |> Enum.each(fn({topology, spec}) ->
       strategy       = Keyword.fetch!(spec, :strategy)
       config         = Keyword.get(spec, :config, [])
       connect_mfa    = Keyword.get(spec, :connect, {:net_kernel, :connect, []})
@@ -28,6 +29,9 @@ defmodule Cluster.App do
         config: config
       ]]
       worker(strategy, worker_args, opts)
-    end
+    end)
   end
+
+  defp filter_for_applied_topologies(_, nil), do: true
+  defp filter_for_applied_topologies({topology, _spec}, applied_topologies), do: topology in applied_topologies
 end
