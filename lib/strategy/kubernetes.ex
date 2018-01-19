@@ -169,19 +169,16 @@ defmodule Cluster.Strategy.Kubernetes do
 
   defp parse_response(:ip, app_name, resp) do
     case resp do
-      %{"items" => []} ->
-        []
-      %{"items" => items} ->
+      %{"items" => items} when is_list(items) ->
         Enum.reduce(items, [], fn
-          %{"subsets" => []}, acc ->
-            acc
-          %{"subsets" => subsets}, acc ->
-            addrs = Enum.flat_map(subsets, fn
-              %{"addresses" => addresses} ->
-                Enum.map(addresses, fn %{"ip" => ip} -> :"#{app_name}@#{ip}" end)
-              _ ->
-                []
-            end)
+          %{"subsets" => subsets}, acc when is_list(subsets) ->
+            addrs =
+              Enum.flat_map(subsets, fn
+                %{"addresses" => addresses} when is_list(addresses) ->
+                  Enum.map(addresses, fn %{"ip" => ip} -> :"#{app_name}@#{ip}" end)
+                _ ->
+                  []
+              end)
             acc ++ addrs
           _, acc ->
             acc
@@ -193,20 +190,17 @@ defmodule Cluster.Strategy.Kubernetes do
 
   defp parse_response(:dns, app_name, resp) do
     case resp do
-      %{"items" => []} ->
-        []
-      %{"items" => items} ->
+      %{"items" => items} when is_list(items) ->
         Enum.reduce(items, [], fn
-          %{"subsets" => []}, acc ->
-            acc
-          %{"subsets" => subsets}, acc ->
-            addrs = Enum.flat_map(subsets, fn
-          %{"addresses" => addresses} ->
-            Enum.map(addresses, fn %{"ip" => ip, "targetRef" => %{"namespace" => namespace}} -> format_dns_record(app_name, ip, namespace) end)
-          _ ->
-            []
-        end)
-          acc ++ addrs
+          %{"subsets" => subsets}, acc when is_list(subsets) ->
+            addrs =
+              Enum.flat_map(subsets, fn
+                %{"addresses" => addresses} when is_list(addresses) ->
+                  Enum.map(addresses, fn %{"ip" => ip, "targetRef" => %{"namespace" => namespace}} -> format_dns_record(app_name, ip, namespace) end)
+                _ ->
+                  []
+              end)
+            acc ++ addrs
           _, acc ->
             acc
         end)
