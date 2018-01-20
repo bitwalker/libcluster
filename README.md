@@ -107,7 +107,7 @@ This can be configured using the following settings:
 config :libcluster,
   topologies: [
     erlang_hosts_example: [
-      strategy: Cluster.Strategy.ErlangHosts}]]
+      strategy: Cluster.Strategy.ErlangHosts]]
 ```
 
 
