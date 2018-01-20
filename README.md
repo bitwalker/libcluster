@@ -91,7 +91,7 @@ http://erlang.org/doc/man/net_adm.html#files:
  > File `.hosts.erlang` consists of a number of host names written as Erlang terms. It is looked for in the current work
  > directory, the user's home directory, and $OTP_ROOT (the root directory of Erlang/OTP), in that order.
 
- #Example:
+## Example:
 
 ```erlang
 'super.eua.ericsson.se'.
