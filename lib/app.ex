@@ -16,6 +16,7 @@ defmodule Cluster.App do
     for {topology, spec} <- specs do
       strategy       = Keyword.fetch!(spec, :strategy)
       config         = Keyword.get(spec, :config, [])
+      block_startup  = Keyword.get(spec, :block_startup, false)
       connect_mfa    = Keyword.get(spec, :connect, {:net_kernel, :connect, []})
       disconnect_mfa = Keyword.get(spec, :disconnect, {:net_kernel, :disconnect, []})
       list_nodes_mfa = Keyword.get(spec, :list_nodes, {:erlang, :nodes, [:connected]})
@@ -25,7 +26,8 @@ defmodule Cluster.App do
         connect: connect_mfa,
         disconnect: disconnect_mfa,
         list_nodes: list_nodes_mfa,
-        config: config
+        config: config,
+        block_startup: block_startup,
       ]]
       worker(strategy, worker_args, opts)
     end

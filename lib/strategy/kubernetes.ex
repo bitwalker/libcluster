@@ -42,6 +42,9 @@ defmodule Cluster.Strategy.Kubernetes do
 
   Defaults to `:ip`.
 
+  If the option `block_startup` is enabled, startup will be blocked until the first lookup was made.
+  This is to ensure global workers can be started without conflicts.
+
   An example configuration is below:
 
 
@@ -76,13 +79,25 @@ defmodule Cluster.Strategy.Kubernetes do
       config: Keyword.fetch!(opts, :config),
       meta: MapSet.new([])
     }
-    {:ok, state, 0}
+
+    if Keyword.fetch!(opts, :block_startup) do
+      {:ok, load(state)}
+    else
+      {:ok, state, 0}
+    end
   end
 
   def handle_info(:timeout, state) do
-    handle_info(:load, state)
+    {:noreply, load(state)}
   end
-  def handle_info(:load, %State{topology: topology, connect: connect, disconnect: disconnect, list_nodes: list_nodes} = state) do
+  def handle_info(:load, state) do
+    {:noreply, load(state)}
+  end
+  def handle_info(_, state) do
+    {:noreply, state}
+  end
+
+  defp load(%State{topology: topology, connect: connect, disconnect: disconnect, list_nodes: list_nodes} = state) do
     new_nodelist = MapSet.new(get_nodes(state))
     added        = MapSet.difference(new_nodelist, state.meta)
     removed      = MapSet.difference(state.meta, new_nodelist)
@@ -105,10 +120,8 @@ defmodule Cluster.Strategy.Kubernetes do
                 end)
             end
     Process.send_after(self(), :load, Keyword.get(state.config, :polling_interval, @default_polling_interval))
-    {:noreply, %{state | :meta => new_nodelist}}
-  end
-  def handle_info(_, state) do
-    {:noreply, state}
+
+    %{state | :meta => new_nodelist}
   end
 
   @spec get_token() :: String.t

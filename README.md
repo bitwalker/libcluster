@@ -55,7 +55,11 @@ config :libcluster,
       list_nodes: {:erlang, :nodes, [:connected]},
       # A list of options for the supervisor child spec
       # of the selected strategy. Optional
-      child_spec: [restart: :transient]
+      child_spec: [restart: :transient],
+      # Define if the first lookup should be made blocking on startup.
+      # Allows to wait start of application until `libcluster` is fully booted.
+      # Optional, Default: `false`
+      block_startup: false
     ]
   ]
 ```
