@@ -8,31 +8,54 @@ defmodule Cluster.Strategy.ErlangHosts do
   You can have libcluster automatically connect nodes on startup for you by configuring
   the strategy like below:
 
+  An optional timeout can be specified in the config. This is the timeout that
+  will be used in the GenServer to connect the nodes. This defaults to
+  `:infinity` meaning that the connection process will only happen when the
+  worker is started. Any integer timeout will result in the connection process
+  being triggered. In the example below, it has been configured for 30 seconds.
+
   config :libcluster,
     topologies: [
       erlang_hosts_example: [
-        strategy: #{__MODULE__}]]
+        strategy: #{__MODULE__},
+        config: [timeout: 30_000]]]
   """
   use Cluster.Strategy
 
   def start_link(opts) do
-    topology = Keyword.fetch!(opts, :topology)
-    connect  = Keyword.fetch!(opts, :connect)
-    list_nodes = Keyword.fetch!(opts, :list_nodes)
-
     case :net_adm.host_file() do
       {:error, _} ->
+        topology = Keyword.fetch!(opts, :topology)
         Cluster.Logger.warn(topology, "couldn't find .hosts.erlang file - not joining cluster")
         :ignore
       file ->
-      nodes =
-        file
-        |> Enum.map(&{:net_adm.names(&1), &1})
-        |> gather_node_names([])
-
-      Cluster.Strategy.connect_nodes(topology, connect, list_nodes, nodes)
-      :ignore
+        GenServer.start_link(__MODULE__, {opts, file})
     end
+  end
+
+  def init({opts, hosts_file}) do
+    {:ok, %{opts: opts, hosts_file: hosts_file}, 0}
+  end
+
+  def handle_info(:timeout, state) do
+    handle_info(:connect, state)
+  end
+
+  def handle_info(:connect, %{opts: opts, hosts_file: hosts_file} = state) do
+    topology = Keyword.fetch!(opts, :topology)
+    connect  = Keyword.fetch!(opts, :connect)
+    list_nodes = Keyword.fetch!(opts, :list_nodes)
+    config = Keyword.get(opts, :config, [])
+    timeout = Keyword.get(config, :timeout, :infinity)
+
+    nodes =
+      hosts_file
+      |> Enum.map(&{:net_adm.names(&1), &1})
+      |> gather_node_names([])
+      |> List.delete(node())
+
+    Cluster.Strategy.connect_nodes(topology, connect, list_nodes, nodes)
+    {:noreply, state, timeout}
   end
 
   defp gather_node_names([], acc) do
