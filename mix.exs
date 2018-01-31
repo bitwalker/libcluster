@@ -11,9 +11,17 @@ defmodule Cluster.Mixfile do
      package: package(),
      docs: docs(),
      deps: deps(),
+     elixirc_paths: elixirc_paths(Mix.env),
      dialyzer: [
         flags: ~w(-Wunmatched_returns -Werror_handling -Wrace_conditions -Wno_opaque -Wunderspecs)
-     ]]
+     ],
+     preferred_cli_env: [
+       vcr: :test,
+       "vcr.delete": :test,
+       "vcr.check": :test,
+       "vcr.show": :test,
+     ]
+    ]
   end
 
   def application do
@@ -24,6 +32,7 @@ defmodule Cluster.Mixfile do
   defp deps do
     [{:ex_doc, "~> 0.13", only: :dev},
      {:dialyxir, "~> 0.3", only: :dev},
+     {:exvcr, "~> 0.8", only: :test},
      {:poison, "~> 3.0"}]
   end
 
@@ -42,4 +51,6 @@ defmodule Cluster.Mixfile do
      ]]
   end
 
+  defp elixirc_paths(:test), do: ["lib", "test/support"]
+  defp elixirc_paths(_), do: ["lib"]
 end
