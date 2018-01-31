@@ -64,6 +64,11 @@ defmodule Cluster.Strategy.Gossip do
           add_membership: {multicast_addr, {0,0,0,0}}
         ])
     state = %{state | :meta => {multicast_addr, port, socket}}
+
+    if Keyword.fetch!(opts, :block_startup) do
+      warn state.topology, "#{__MODULE__} does not support option block_startup"
+    end
+
     {:ok, state, 0}
   end
 

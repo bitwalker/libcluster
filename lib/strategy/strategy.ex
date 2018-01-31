@@ -13,9 +13,16 @@ defmodule Cluster.Strategy do
   @type mfa_tuple :: {module(), atom(), [term()]}
   @type strategy_opts :: [topology: atom(),
                           connect: mfa_tuple,
-                          disconnect: mfa_tuple]
+                          disconnect: mfa_tuple,
+                          block_startup: boolean,
+                          list_nodes: mfa_tuple,
+                          config: Keyword.t]
 
-  # Starts the strategy
+  @doc """
+  Starts the strategy
+
+  If `block_startup` is `true`, the first lookup must be made synchronous in the `init` of the strategy.
+  """
   @callback start_link(strategy_opts) :: {:ok, pid} | :ignore | {:error, reason :: term}
 
   @doc false
@@ -88,10 +95,10 @@ defmodule Cluster.Strategy do
           acc
         false ->
           Cluster.Logger.warn topology, "disconnect from #{inspect n} failed because we're already disconnected"
-          acc
+          [{n, false}|acc]
         :ignored ->
           Cluster.Logger.warn topology, "disconnect from #{inspect n} failed because it is not part of the network"
-          acc
+          [{n, :ignored}|acc]
       end
     end)
     case bad_nodes do

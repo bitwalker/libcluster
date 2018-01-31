@@ -13,6 +13,12 @@ defmodule Cluster.Mixfile do
      deps: deps(),
      dialyzer: [
         flags: ~w(-Wunmatched_returns -Werror_handling -Wrace_conditions -Wno_opaque -Wunderspecs)
+     ],
+     preferred_cli_env: [
+       vcr: :test,
+       "vcr.delete": :test,
+       "vcr.check": :test,
+       "vcr.show": :test
      ]]
   end
 
@@ -24,7 +30,8 @@ defmodule Cluster.Mixfile do
   defp deps do
     [{:ex_doc, "~> 0.13", only: :dev},
      {:dialyxir, "~> 0.3", only: :dev},
-     {:poison, "~> 3.0"}]
+     {:poison, "~> 3.0"},
+     {:exvcr, "~> 0.8", only: :test}]
   end
 
   defp package do
