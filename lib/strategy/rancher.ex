@@ -57,14 +57,20 @@ defmodule Cluster.Strategy.Rancher do
       config: Keyword.fetch!(opts, :config),
       meta: MapSet.new([])
     }
-    {:ok, state, 0}
+    {:ok, load(state)}
   end
 
   def handle_info(:timeout, state) do
     handle_info(:load, state)
   end
+  def handle_info(:load, %State{} = state) do
+    {:noreply, load(state)}
+  end
+  def handle_info(_, state) do
+    {:noreply, state}
+  end
 
-  def handle_info(:load, %State{topology: topology, connect: connect, disconnect: disconnect, list_nodes: list_nodes} = state) do
+  defp load(%State{topology: topology, connect: connect, disconnect: disconnect, list_nodes: list_nodes} = state) do
     new_nodelist = MapSet.new(get_nodes(state))
     added        = MapSet.difference(new_nodelist, state.meta)
     removed      = MapSet.difference(state.meta, new_nodelist)
@@ -89,10 +95,7 @@ defmodule Cluster.Strategy.Rancher do
           end)
       end
     Process.send_after(self(), :load, Keyword.get(state.config, :polling_interval, @default_polling_interval))
-    {:noreply, %{state | :meta => new_nodelist}}
-  end
-  def handle_info(_, state) do
-    {:noreply, state}
+    %{state | :meta => new_nodelist}
   end
 
   @spec get_nodes(State.t) :: [atom()]

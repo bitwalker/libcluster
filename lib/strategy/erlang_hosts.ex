@@ -34,19 +34,24 @@ defmodule Cluster.Strategy.ErlangHosts do
   end
 
   def init({opts, hosts_file}) do
-    {:ok, %{opts: opts, hosts_file: hosts_file}, 0}
+    {:ok, connect_hosts(%{opts: opts, hosts_file: hosts_file}), configured_timeout(opts)}
   end
 
   def handle_info(:timeout, state) do
     handle_info(:connect, state)
   end
+  def handle_info(:connect, %{opts: opts} = state) do
+    {:noreply, connect_hosts(state), configured_timeout(opts)}
+  end
 
-  def handle_info(:connect, %{opts: opts, hosts_file: hosts_file} = state) do
+  defp configured_timeout(%{opts: opts}) do
+    get_in(opts, [:config, :timeout]) || :infinity
+  end
+
+  defp connect_hosts(%{opts: opts, hosts_file: hosts_file} = state) do
     topology = Keyword.fetch!(opts, :topology)
     connect  = Keyword.fetch!(opts, :connect)
     list_nodes = Keyword.fetch!(opts, :list_nodes)
-    config = Keyword.get(opts, :config, [])
-    timeout = Keyword.get(config, :timeout, :infinity)
 
     nodes =
       hosts_file
@@ -55,19 +60,13 @@ defmodule Cluster.Strategy.ErlangHosts do
       |> List.delete(node())
 
     Cluster.Strategy.connect_nodes(topology, connect, list_nodes, nodes)
-    {:noreply, state, timeout}
+    state
   end
 
-  defp gather_node_names([], acc) do
-    acc
-  end
-
+  defp gather_node_names([], acc), do: acc
   defp gather_node_names([{{:ok, names}, host} | rest], acc) do
     names = Enum.map(names, fn {name, _} -> String.to_atom("#{name}@#{host}") end)
     gather_node_names(rest, names ++ acc)
   end
-
-  defp gather_node_names([_ | rest], acc) do
-    gather_node_names(rest, acc)
-  end
+  defp gather_node_names([_ | rest], acc), do: gather_node_names(rest, acc)
 end

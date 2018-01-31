@@ -15,6 +15,16 @@ defmodule Cluster.Strategy.Epmd do
   """
   use Cluster.Strategy
 
+  def child_spec(opts) do
+    %{
+      id: __MODULE__,
+      start: {__MODULE__, :start_link, [opts]},
+      type: :worker,
+      restart: :permanent,
+      shutdown: 500
+    }
+  end
+
   def start_link(opts) do
     topology = Keyword.fetch!(opts, :topology)
     config   = Keyword.get(opts, :config, [])
