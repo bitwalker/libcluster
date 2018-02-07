@@ -155,7 +155,7 @@ And in vm.args:
 
 The Rancher strategy follows the steps of the Kubernetes one. It queries the [Rancher Metadata API][rancher-api] for the
 IPs associated with the running containers of the service that the node making the HTTP request belongs to. You must
-make sure that your nodes are configured to use longnames like :"<name>@<ip>" where the `nname` must be the same
+make sure that your nodes are configured to use longnames like :"<name>@<ip>" where the `name` must be the same
 as the `node_basename` config option of the topology and the `ip` must match the one assigned to the container of the
 node by Rancher.
 
