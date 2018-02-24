@@ -6,6 +6,8 @@ defmodule Cluster.StrategyTest do
   alias Cluster.Strategy
   alias Cluster.Nodes
 
+  require Cluster.Nodes
+
   import ExUnit.CaptureLog
 
   describe "connect_nodes/4" do
@@ -79,32 +81,17 @@ defmodule Cluster.StrategyTest do
       assert_receive {:disconnect, :"foo@some.host"}
     end
 
-    test "handles connect failure" do
-      disconnect = {Nodes, :disconnect, [self(), false]}
+    test "handles disconnect error" do
+      disconnect = {Nodes, :disconnect, [self(), :failed]}
       list_nodes = {Nodes, :list_nodes, [[:"foo@some.host"]]}
 
       assert capture_log(fn ->
-               assert {:error, ["foo@some.host": false]} =
+               assert {:error, ["foo@some.host": :failed]} =
                         Strategy.disconnect_nodes(__MODULE__, disconnect, list_nodes, [
                           :"foo@some.host"
                         ])
              end) =~
-               "disconnect from :\"foo@some.host\" failed because we're already disconnected"
-
-      assert_receive {:disconnect, :"foo@some.host"}
-    end
-
-    test "handles disconnect ignore" do
-      disconnect = {Nodes, :disconnect, [self(), :ignored]}
-      list_nodes = {Nodes, :list_nodes, [[:"foo@some.host"]]}
-
-      assert capture_log(fn ->
-               assert {:error, ["foo@some.host": :ignored]} =
-                        Strategy.disconnect_nodes(__MODULE__, disconnect, list_nodes, [
-                          :"foo@some.host"
-                        ])
-             end) =~
-               "disconnect from :\"foo@some.host\" failed because it is not part of the network"
+               "disconnect from :\"foo@some.host\" failed with: :failed"
 
       assert_receive {:disconnect, :"foo@some.host"}
     end

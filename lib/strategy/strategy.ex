@@ -92,6 +92,9 @@ defmodule Cluster.Strategy do
         :ignored ->
           Cluster.Logger.warn topology, "disconnect from #{inspect n} failed because it is not part of the network"
           acc
+        reason ->
+          Cluster.Logger.warn topology, "disconnect from #{inspect n} failed with: #{inspect reason}"
+          [{n, reason} | acc]
       end
     end)
     case bad_nodes do
