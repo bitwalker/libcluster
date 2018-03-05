@@ -40,6 +40,7 @@ defmodule Cluster.AppTest do
       assert [caller: _] = options[:config]
       refute options[:block_startup]
     end
+  end
 
   defp restart_application(config) do
     capture_log(fn ->
