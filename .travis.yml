@@ -1,3 +1,4 @@
+sudo: false
 language: elixir
 elixir:
   - 1.5
@@ -5,3 +6,7 @@ elixir:
 otp_release:
   - 19
   - 20
+script: "MIX_ENV=test mix do deps.get, test"
+notifications:
+  recipients:
+    - paulschoenfelder@gmail.com
