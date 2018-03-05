@@ -13,7 +13,7 @@
         }
       },
       "request_body": "",
-      "url": "https://cluster.localhost/api/v1/namespaces/airatel-service-localization/endpoints"
+      "url": "https://cluster.localhost/api/v1/namespaces/__libcluster_test/endpoints?labelSelector=app=test_selector"
     },
     "response": {
       "binary": false,

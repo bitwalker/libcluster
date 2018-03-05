@@ -7,10 +7,13 @@ defmodule Cluster.Strategy.KubernetesTest do
   alias Cluster.Strategy.Kubernetes
   alias Cluster.Nodes
 
+  require Cluster.Nodes
+
   import ExUnit.CaptureLog
 
   setup do
-    ExVCR.Config.cassette_library_dir(Path.join([__DIR__, "fixtures", "vcr_cassettes"]))
+    cassettes_path = Path.join([__DIR__, "fixtures", "vcr_cassettes"])
+    ExVCR.Config.cassette_library_dir(cassettes_path, cassettes_path)
     ExVCR.Config.filter_request_headers("authorization")
     ExVCR.Config.filter_url_params(true)
 
@@ -26,14 +29,14 @@ defmodule Cluster.Strategy.KubernetesTest do
 
   describe "start_link/1" do
     test "calls right functions" do
-      use_cassette "kubernetes" do
+      use_cassette "kubernetes", custom: true do
         capture_log(fn ->
           start_supervised!({Kubernetes,
            [
              topology: :name,
              config: [
-               kubernetes_node_basename: System.get_env("KUBERNETES_APP_BASENAME"),
-               kubernetes_selector: "app=#{System.get_env("KUBERNETES_SELECTOR")}",
+               kubernetes_node_basename: "test_basename",
+               kubernetes_selector: "app=test_selector",
                # If you want to run the test freshly, you'll need to create a DNS Entry
                kubernetes_master: "cluster.localhost",
                kubernetes_service_account_path:

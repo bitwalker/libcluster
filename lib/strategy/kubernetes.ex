@@ -126,11 +126,13 @@ defmodule Cluster.Strategy.Kubernetes do
     end
   end
 
+  @env Mix.env
   @spec get_namespace(String.t) :: String.t
   defp get_namespace(service_account_path) do
     path = Path.join(service_account_path, "namespace")
     case File.exists?(path) do
       true  -> path |> File.read! |> String.trim()
+      false when @env == :test -> "__libcluster_test"
       false -> ""
     end
   end
