@@ -170,6 +170,7 @@ config :libcluster,
 ### Third-Party Clustering Strategies
 
 - [libcluster_ec2](https://github.com/kyleaa/libcluster_ec2) - EC2 clustering strategy based on tags
+- [libcluster_consul](https://github.com/arcz/libcluster_consul) - Consul clustering strategy
 
 ## License
 
