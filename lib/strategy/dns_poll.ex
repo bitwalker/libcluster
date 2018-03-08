@@ -1,6 +1,14 @@
 defmodule Cluster.Strategy.DNSPoll do
   @moduledoc """
-  TODO: add description
+  Assumes you have nodes that respond to the specified DNS query (A record), and which follow the node name pattern of
+  `<sname>@<ip-address>`. If your setup matches those assumptions, this strategy will periodically poll DNS and connect
+  all nodes it finds.
+
+  options:
+
+  * `poll_interval` - How often to poll in milliseconds (optional; default: 5_000)
+  * `query` - DNS query to use (required; e.g. "my-app.example.com")
+  * `node_sname` - The short name of the nodes you wish to connect to (required; e.g. "my-app")
 
   example config:
 
