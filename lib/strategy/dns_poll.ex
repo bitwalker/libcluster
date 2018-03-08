@@ -13,6 +13,7 @@ defmodule Cluster.Strategy.DNSPoll do
               query: "my-app.example.com",
               node_sname: "my-app"]]]
   """
+
   use GenServer
   use Cluster.Strategy
   import Cluster.Logger
@@ -32,44 +33,49 @@ defmodule Cluster.Strategy.DNSPoll do
       connect: Keyword.fetch!(opts, :connect),
       disconnect: Keyword.fetch!(opts, :disconnect),
       list_nodes: Keyword.fetch!(opts, :list_nodes),
-      config: Keyword.fetch!(opts, :config)
+      config: Keyword.get(opts, :config, [])
     }
-    query = Keyword.get(state.config, :query)
-    poll_interval = Keyword.get(state.config, :poll_interval, @default_poll_interval)
-    node_sname = Keyword.get(state.config, :node_sname)
 
-    state = %{state | :meta => {poll_interval, query, node_sname}}
-    {:ok, state, 0}
+    query = Keyword.fetch!(state.config, :query)
+    node_sname = Keyword.fetch!(state.config, :node_sname)
+    poll_interval = Keyword.get(state.config, :poll_interval, @default_poll_interval)
+
+    state = %{state | meta: {poll_interval, query, node_sname}}
+
+    info(state.topology, "starting dns polling for #{query}")
+
+    {:ok, do_poll(state)}
   end
 
-  # timeout starts the loop by calling :poll
   def handle_info(:timeout, state), do: handle_info(:poll, state)
-  def handle_info(:poll, %State{meta: {poll_interval, query, node_sname}} = state) do
-    debug state.topology, "polling dns for #{query}"
+  def handle_info(:poll, state), do: {:noreply, do_poll(state)}
+  def handle_info(_, state), do: {:noreply, state}
 
-    self = node()
+  defp do_poll(%State{meta: {poll_interval, query, node_sname}} = state) do
+    debug(state.topology, "polling dns for #{query}")
+
+    me = node()
 
     # query for all ips responding to a given dns query
-    query
-    |> String.to_charlist
-    |> :inet_res.lookup(:in, :a)
-    |> Enum.map(&format_node(&1, node_sname)) # format ips as node names
-    |> Enum.reject(fn(n) -> n == self end)    # filter out self
-    |> handle_poll(state)
+    # format ips as node names
+    # filter out me
+    nodes =
+      query
+      |> String.to_charlist()
+      |> :inet_res.lookup(:in, :a)
+      |> Enum.map(&format_node(&1, node_sname))
+      |> Enum.reject(fn n -> n == me end)
+
+    debug(topology, "found nodes #{inspect(nodes)}")
+
+    Cluster.Strategy.connect_nodes(state.topology, state.connect, state.list_nodes, nodes)
 
     # reschedule a call to itself in poll_interval ms
     Process.send_after(self(), :poll, poll_interval)
 
-    {:noreply, state}
+    %{state | meta: {poll_interval, query, node_sname, nodes}}
   end
 
   # turn an ip into a node name atom, assuming that all other node names looks similar to our own name
-  defp format_node({a, b, c, d}, sname), do: "#{sname}@#{a}.#{b}.#{c}.#{d}" |> String.to_atom
-
-  # handle connecting to all nodes found
-  defp handle_poll(nodes, %State{connect: connect, list_nodes: list_nodes} = state) do
-    debug state.topology, "found nodes #{inspect(nodes)}"
-    Cluster.Strategy.connect_nodes(state.topology, connect, list_nodes, nodes)
-    :ok
-  end
+  defp format_node({a, b, c, d}, sname), do: :"#{sname}@#{a}.#{b}.#{c}.#{d}"
 end
