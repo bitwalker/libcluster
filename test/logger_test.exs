@@ -6,6 +6,7 @@ defmodule Cluster.LoggerTest do
   import ExUnit.CaptureLog
 
   alias Cluster.Logger
+  Application.put_env(:libcluster, :debug, true)
 
   for level <- [:debug, :info, :warn, :error] do
     describe "#{level}/2" do
