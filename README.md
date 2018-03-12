@@ -130,6 +130,17 @@ config :libcluster,
         multicast_ttl: 1]]]
 ```
 
+Debug is deactivated by default for this clustering strategy, but it can be easily activated by configuring the application:
+
+```
+use Mix.Config
+
+config :libcluster,
+  debug: true
+```
+
+All the checks are done at runtime, so you can flip the debug level without being forced to shutdown your node.
+
 The Kubernetes strategy works by querying the Kubernetes API for all endpoints in the same namespace which match the provided
 selector, and getting the container IPs associated with them. Once all of the matching IPs have been found, it will attempt to
 establish node connections using the format `<kubernetes_node_basename>@<endpoint ip>`. You must make sure that your nodes are
