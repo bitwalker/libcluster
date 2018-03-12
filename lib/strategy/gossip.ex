@@ -79,9 +79,7 @@ defmodule Cluster.Strategy.Gossip do
   # Send stuttered heartbeats
   def handle_info(:timeout, state), do: handle_info(:heartbeat, state)
   def handle_info(:heartbeat, %State{meta: {multicast_addr, port, socket}} = state) do
-    if Application.get_env(:libcluster, :debug, false) do
-      debug state.topology, "heartbeat"
-    end
+    debug state.topology, "heartbeat"
     :gen_udp.send(socket, multicast_addr, port, heartbeat(node()))
     Process.send_after(self(), :heartbeat, :rand.uniform(5_000))
     {:noreply, state}
@@ -114,9 +112,7 @@ defmodule Cluster.Strategy.Gossip do
       %{node: ^self} ->
         :ok
       %{node: n} when is_atom(n) ->
-        if Application.get_env(:libcluster, :debug, false) do
-          debug state.topology, "received heartbeat from #{n}"
-        end
+        debug state.topology, "received heartbeat from #{n}"
         Cluster.Strategy.connect_nodes(state.topology, connect, list_nodes, [n])
         :ok
       _ ->
