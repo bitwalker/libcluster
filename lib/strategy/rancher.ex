@@ -107,7 +107,7 @@ defmodule Cluster.Strategy.Rancher do
 
         case :httpc.request(:get, {'#{@rancher_metadata_base_url}/#{endpoints_path}', headers}, [], []) do
           {:ok, {{_version, 200, _status}, _headers, body}} ->
-            parse_response(app_name, Poison.decode!(body))
+            parse_response(app_name, Jason.decode!(body))
           {:ok, {{_version, code, status}, _headers, body}} ->
             warn topology, "cannot query Rancher Metadata API (#{code} #{status}): #{inspect body}"
             []

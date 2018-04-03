@@ -25,7 +25,7 @@ defmodule Cluster.Mixfile do
   end
 
   def application do
-    [applications: [:logger, :inets, :poison, :crypto, :ssl],
+    [applications: [:logger, :inets, :jason, :crypto, :ssl],
      mod: {Cluster.App, []}]
   end
 
@@ -33,7 +33,7 @@ defmodule Cluster.Mixfile do
     [{:ex_doc, "~> 0.13", only: :dev},
      {:dialyxir, "~> 0.3", only: :dev},
      {:exvcr, "~> 0.8", only: :test},
-     {:poison, "~> 3.0"}]
+     {:jason, "~> 1.0"}]
   end
 
   defp package do
