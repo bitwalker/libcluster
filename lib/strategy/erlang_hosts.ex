@@ -34,14 +34,14 @@ defmodule Cluster.Strategy.ErlangHosts do
   end
 
   def init({opts, hosts_file}) do
-    {:ok, connect_hosts(%{opts: opts, hosts_file: hosts_file}), configured_timeout(opts)}
+    state = connect_hosts(%{opts: opts, hosts_file: hosts_file})
+    {:ok, state, configured_timeout(state)}
   end
 
-  def handle_info(:timeout, state) do
-    handle_info(:connect, state)
-  end
-  def handle_info(:connect, %{opts: opts} = state) do
-    {:noreply, connect_hosts(state), configured_timeout(opts)}
+  def handle_info(:timeout, state), do: handle_info(:connect, state)
+  def handle_info(:connect, state) do
+    new_state = connect_hosts(state)
+    {:noreply, new_state, configured_timeout(new_state)}
   end
 
   defp configured_timeout(%{opts: opts}) do
