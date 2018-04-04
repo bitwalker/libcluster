@@ -138,7 +138,7 @@ defmodule Cluster.Strategy.Kubernetes do
 
     %{state | :meta => new_nodelist}
   end
-  
+
   defp polling_interval(%{config: config}) do
     Keyword.get(config, :polling_interval, @default_polling_interval)
   end
@@ -154,7 +154,7 @@ defmodule Cluster.Strategy.Kubernetes do
   end
 
   @spec get_namespace(String.t()) :: String.t()
-  if Mix.env == :test do
+  if Mix.env() == :test do
     defp get_namespace(_service_account_path), do: "__libcluster_test"
   else
     defp get_namespace(service_account_path) do

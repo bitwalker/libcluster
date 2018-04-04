@@ -119,7 +119,7 @@ defmodule Cluster.Strategy.Rancher do
 
     %{state | :meta => new_nodelist}
   end
-  
+
   defp polling_interval(%{config: config}) do
     Keyword.get(config, :polling_interval, @default_polling_interval)
   end
