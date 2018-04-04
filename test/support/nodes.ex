@@ -15,4 +15,3 @@ defmodule Cluster.Nodes do
     nodes
   end
 end
-

@@ -34,8 +34,8 @@ defmodule Cluster.Strategy.Gossip do
   alias Cluster.Strategy.State
 
   @default_port 45892
-  @default_addr {0,0,0,0}
-  @default_multicast_addr {230,1,1,251}
+  @default_addr {0, 0, 0, 0}
+  @default_multicast_addr {230, 1, 1, 251}
 
   def start_link(opts) do
     GenServer.start_link(__MODULE__, opts)
@@ -49,27 +49,35 @@ defmodule Cluster.Strategy.Gossip do
       list_nodes: Keyword.fetch!(opts, :list_nodes),
       config: Keyword.fetch!(opts, :config)
     }
+
     port = Keyword.get(state.config, :port, @default_port)
-    ip   = Keyword.get(state.config, :if_addr, @default_addr) |> sanitize_ip
-    ttl  = Keyword.get(state.config, :multicast_ttl, 1)
-    multicast_addr = Keyword.get(state.config, :multicast_addr, @default_multicast_addr) |> sanitize_ip
-    {:ok, socket} = :gen_udp.open(port, [
-          :binary,
-          active: true,
-          ip: ip,
-          reuseaddr: true,
-          broadcast: true,
-          multicast_ttl: ttl,
-          multicast_loop: true,
-          add_membership: {multicast_addr, {0,0,0,0}}
-        ])
+    ip = Keyword.get(state.config, :if_addr, @default_addr) |> sanitize_ip
+    ttl = Keyword.get(state.config, :multicast_ttl, 1)
+
+    multicast_addr =
+      Keyword.get(state.config, :multicast_addr, @default_multicast_addr) |> sanitize_ip
+
+    {:ok, socket} =
+      :gen_udp.open(port, [
+        :binary,
+        active: true,
+        ip: ip,
+        reuseaddr: true,
+        broadcast: true,
+        multicast_ttl: ttl,
+        multicast_loop: true,
+        add_membership: {multicast_addr, {0, 0, 0, 0}}
+      ])
+
     state = %{state | :meta => {multicast_addr, port, socket}}
     {:ok, state, 0}
   end
 
   defp sanitize_ip(input) do
     case input do
-      {_a,_b,_c,_d} = ip -> ip
+      {_a, _b, _c, _d} = ip ->
+        ip
+
       ip when is_binary(ip) ->
         {:ok, addr} = :inet.parse_ipv4_address(~c"#{ip}")
         addr
@@ -78,8 +86,9 @@ defmodule Cluster.Strategy.Gossip do
 
   # Send stuttered heartbeats
   def handle_info(:timeout, state), do: handle_info(:heartbeat, state)
+
   def handle_info(:heartbeat, %State{meta: {multicast_addr, port, socket}} = state) do
-    debug state.topology, "heartbeat"
+    debug(state.topology, "heartbeat")
     :gen_udp.send(socket, multicast_addr, port, heartbeat(node()))
     Process.send_after(self(), :heartbeat, :rand.uniform(5_000))
     {:noreply, state}
@@ -91,7 +100,7 @@ defmodule Cluster.Strategy.Gossip do
     {:noreply, state}
   end
 
-  def terminate(_type, _reason, %State{meta: {_,_,socket}}) do
+  def terminate(_type, _reason, %State{meta: {_, _, socket}}) do
     :gen_udp.close(socket)
     :ok
   end
@@ -105,20 +114,27 @@ defmodule Cluster.Strategy.Gossip do
   # is connected to us, and if not, we connect to it.
   # If the connection fails, it's likely because the cookie
   # is different, and thus a node we can ignore
-  @spec handle_heartbeat(State.t, binary) :: :ok
-  defp handle_heartbeat(%State{connect: connect, list_nodes: list_nodes} = state, <<"heartbeat::", rest::binary>>) do
+  @spec handle_heartbeat(State.t(), binary) :: :ok
+  defp handle_heartbeat(
+         %State{connect: connect, list_nodes: list_nodes} = state,
+         <<"heartbeat::", rest::binary>>
+       ) do
     self = node()
+
     case :erlang.binary_to_term(rest) do
       %{node: ^self} ->
         :ok
+
       %{node: n} when is_atom(n) ->
-        debug state.topology, "received heartbeat from #{n}"
+        debug(state.topology, "received heartbeat from #{n}")
         Cluster.Strategy.connect_nodes(state.topology, connect, list_nodes, [n])
         :ok
+
       _ ->
         :ok
     end
   end
+
   defp handle_heartbeat(_state, _packet) do
     :ok
   end

@@ -28,6 +28,7 @@ defmodule Cluster.Strategy.ErlangHosts do
         topology = Keyword.fetch!(opts, :topology)
         Cluster.Logger.warn(topology, "couldn't find .hosts.erlang file - not joining cluster")
         :ignore
+
       file ->
         GenServer.start_link(__MODULE__, {opts, file})
     end
@@ -39,6 +40,7 @@ defmodule Cluster.Strategy.ErlangHosts do
   end
 
   def handle_info(:timeout, state), do: handle_info(:connect, state)
+
   def handle_info(:connect, state) do
     new_state = connect_hosts(state)
     {:noreply, new_state, configured_timeout(new_state)}
@@ -50,7 +52,7 @@ defmodule Cluster.Strategy.ErlangHosts do
 
   defp connect_hosts(%{opts: opts, hosts_file: hosts_file} = state) do
     topology = Keyword.fetch!(opts, :topology)
-    connect  = Keyword.fetch!(opts, :connect)
+    connect = Keyword.fetch!(opts, :connect)
     list_nodes = Keyword.fetch!(opts, :list_nodes)
 
     nodes =
@@ -64,9 +66,11 @@ defmodule Cluster.Strategy.ErlangHosts do
   end
 
   defp gather_node_names([], acc), do: acc
+
   defp gather_node_names([{{:ok, names}, host} | rest], acc) do
     names = Enum.map(names, fn {name, _} -> String.to_atom("#{name}@#{host}") end)
     gather_node_names(rest, names ++ acc)
   end
+
   defp gather_node_names([_ | rest], acc), do: gather_node_names(rest, acc)
 end

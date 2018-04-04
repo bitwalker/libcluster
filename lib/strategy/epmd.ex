@@ -27,12 +27,14 @@ defmodule Cluster.Strategy.Epmd do
 
   def start_link(opts) do
     topology = Keyword.fetch!(opts, :topology)
-    config   = Keyword.get(opts, :config, [])
-    connect  = Keyword.fetch!(opts, :connect)
+    config = Keyword.get(opts, :config, [])
+    connect = Keyword.fetch!(opts, :connect)
     list_nodes = Keyword.fetch!(opts, :list_nodes)
+
     case Keyword.get(config, :hosts, []) do
       [] ->
         :ignore
+
       nodes when is_list(nodes) ->
         Cluster.Strategy.connect_nodes(topology, connect, list_nodes, nodes)
         :ignore
