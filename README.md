@@ -38,6 +38,8 @@ which will be used.
 
 ```elixir
 config :libcluster,
+  # If you want to define multiple topologies but only use a specific one depending on your env you can whitelist them here.
+  whitelisted_topologies: [:example],
   topologies: [
     example: [
       # The selected clustering strategy. Required.

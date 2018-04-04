@@ -2,6 +2,8 @@
 use Mix.Config
 
 config :libcluster,
+  # You can whitelist some of the defined topologies 
+  whitelisted_topologies: [:example],
   # You can start clustering for one or more topologies.
   topologies: [
     example: [
