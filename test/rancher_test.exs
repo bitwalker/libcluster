@@ -1,4 +1,4 @@
-defmodule Cluster.Strategy.MultiRancherTest do
+defmodule Cluster.Strategy.RancherTest do
   @moduledoc false
 
   use ExUnit.Case, async: true
@@ -11,17 +11,30 @@ defmodule Cluster.Strategy.MultiRancherTest do
 
   alias Plug.Conn
   alias Cluster.Nodes
-  alias Cluster.Strategy.MultiRancher
+  alias Cluster.Strategy.Rancher
   alias Cluster.Fixtures.RancherResponse, as: RancherFixture
 
   describe "start_link/1" do
-    test "adds new nodes", %{bypass: bypass} do
+    test "adds new nodes with self config", %{bypass: bypass} do
+      Bypass.expect_once(bypass, "GET", "/latest/self/service", fn conn ->
+        Conn.resp(conn, 200, RancherFixture.batch_response(["10.0.0.1", "10.0.0.2"]))
+      end)
+
+      capture_log(fn ->
+        bypass.port |> endpoint_url() |> valid_opts(:stacks) |> Rancher.start_link()
+
+        assert_receive {:connect, :"node@10.0.0.1"}, 100
+        assert_receive {:connect, :"node@10.0.0.2"}, 100
+      end)
+    end
+
+    test "adds new nodes with multi-stacks config", %{bypass: bypass} do
       Bypass.expect_once(bypass, "GET", "/latest/stacks/api/services/app", fn conn ->
         Conn.resp(conn, 200, RancherFixture.batch_response(["10.0.0.1", "10.0.0.2"]))
       end)
 
       capture_log(fn ->
-        bypass.port |> endpoint_url() |> valid_opts() |> MultiRancher.start_link()
+        bypass.port |> endpoint_url() |> valid_opts() |> Rancher.start_link()
 
         assert_receive {:connect, :"node@10.0.0.1"}, 100
         assert_receive {:connect, :"node@10.0.0.2"}, 100
@@ -42,7 +55,7 @@ defmodule Cluster.Strategy.MultiRancherTest do
           {Nodes, :list_nodes, [[:"node@10.0.0.1", :"node@10.0.0.2"]]}
         )
         |> put_in([:meta], MapSet.new([:"node@10.0.0.1", :"node@10.0.0.2"]))
-        |> MultiRancher.start_link()
+        |> Rancher.start_link()
 
         assert_receive {:disconnect, :"node@10.0.0.2"}, 100
       end)
@@ -62,7 +75,7 @@ defmodule Cluster.Strategy.MultiRancherTest do
           {Nodes, :list_nodes, [[:"node@10.0.0.1"]]}
         )
         |> put_in([:meta], MapSet.new([:"node@10.0.0.1"]))
-        |> MultiRancher.start_link()
+        |> Rancher.start_link()
 
         refute_receive {:disconnect, _}, 100
         refute_receive {:connect, _}, 100
@@ -78,7 +91,7 @@ defmodule Cluster.Strategy.MultiRancherTest do
         bypass.port
         |> endpoint_url()
         |> valid_opts()
-        |> MultiRancher.start_link()
+        |> Rancher.start_link()
 
         refute_receive {:disconnect, _}, 100
         refute_receive {:connect, _}, 100
@@ -90,7 +103,7 @@ defmodule Cluster.Strategy.MultiRancherTest do
         base_opts()
         |> put_in([:config, :node_basename], "node")
         |> put_in([:config, :stacks], [[name: "api", services: ["app"]]])
-        |> MultiRancher.start_link()
+        |> Rancher.start_link()
 
         refute_receive {:disconnect, _}, 100
         refute_receive {:connect, _}, 100
@@ -113,7 +126,7 @@ defmodule Cluster.Strategy.MultiRancherTest do
           {Nodes, :list_nodes, [[:"node@10.0.0.2"]]}
         )
         |> put_in([:meta], MapSet.new([:"node@10.0.0.2"]))
-        |> MultiRancher.start_link()
+        |> Rancher.start_link()
       end
 
       assert capture_log(failed) =~ "unable to connect"
@@ -125,7 +138,7 @@ defmodule Cluster.Strategy.MultiRancherTest do
       capture_log(fn ->
         base_opts()
         |> put_in([:config, :node_basename], "service")
-        |> MultiRancher.start_link()
+        |> Rancher.start_link()
 
         refute_receive {:disconnect, _}, 100
         refute_receive {:connect, _}, 100
@@ -135,7 +148,7 @@ defmodule Cluster.Strategy.MultiRancherTest do
       capture_log(fn ->
         base_opts()
         |> put_in([:config, :stacks], [[name: "foo"]])
-        |> MultiRancher.start_link()
+        |> Rancher.start_link()
 
         refute_receive {:disconnect, _}, 100
         refute_receive {:connect, _}, 100
@@ -146,7 +159,7 @@ defmodule Cluster.Strategy.MultiRancherTest do
         base_opts()
         |> put_in([:config, :stacks], [])
         |> put_in([:config, :node_basename], "")
-        |> MultiRancher.start_link()
+        |> Rancher.start_link()
 
         refute_receive {:disconnect, _}, 100
         refute_receive {:connect, _}, 100
@@ -154,7 +167,7 @@ defmodule Cluster.Strategy.MultiRancherTest do
 
       # missing stacks & node_basename
       capture_log(fn ->
-        base_opts() |> MultiRancher.start_link()
+        base_opts() |> Rancher.start_link()
         refute_receive {:disconnect, _}, 100
         refute_receive {:connect, _}, 100
       end)
@@ -177,6 +190,13 @@ defmodule Cluster.Strategy.MultiRancherTest do
     base_opts()
     |> put_in([:config, :node_basename], "node")
     |> put_in([:config, :stacks], [[name: "api", services: ["app"]]])
+    |> put_in([:config, :rancher_metadata_base_url], endpoint_url)
+  end
+
+  def valid_opts(endpoint_url, :stacks) do
+    base_opts()
+    |> put_in([:config, :node_basename], "node")
+    |> put_in([:config, :stacks], :self)
     |> put_in([:config, :rancher_metadata_base_url], endpoint_url)
   end
 end
