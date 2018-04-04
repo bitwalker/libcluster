@@ -74,7 +74,7 @@ defmodule Cluster.Strategy.DNSPoll do
       |> Enum.map(&format_node(&1, node_sname))
       |> Enum.reject(fn n -> n == me end)
 
-    debug(topology, "found nodes #{inspect(nodes)}")
+    debug(state.topology, "found nodes #{inspect(nodes)}")
 
     Cluster.Strategy.connect_nodes(state.topology, state.connect, state.list_nodes, nodes)
 
