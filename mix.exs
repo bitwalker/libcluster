@@ -3,8 +3,8 @@ defmodule Cluster.Mixfile do
 
   def project do
     [app: :libcluster,
-     version: "2.3.0",
-     elixir: "~> 1.3",
+     version: "2.4.0",
+     elixir: "~> 1.4",
      build_embedded: Mix.env == :prod,
      start_permanent: Mix.env == :prod,
      description: "Automatic Erlang cluster formation and management for Elixir/Erlang applications",
