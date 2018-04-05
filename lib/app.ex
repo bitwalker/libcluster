@@ -23,7 +23,7 @@ defmodule Cluster.App do
     worker_args = [{:topology, topology} | extract_args(spec)]
     opts = Keyword.get(spec, :child_spec, [])
 
-    Supervisor.start_child(Cluster.Supervisor, worker(strategy, worker_args, opts))
+    Supervisor.start_child(Cluster.Supervisor, worker(strategy, [worker_args], opts))
   end
 
   defp get_child_specs() do
@@ -35,7 +35,7 @@ defmodule Cluster.App do
       worker_args = [{:topology, topology} | extract_args(spec)]
       opts = Keyword.get(spec, :child_spec, [])
 
-      worker(strategy, worker_args, opts)
+      worker(strategy, [worker_args], opts)
     end
   end
 
