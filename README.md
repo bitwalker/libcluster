@@ -65,7 +65,7 @@ config :libcluster,
 ## Clustering
 
 You have five choices with regards to cluster management out of the box. You can use the built-in Erlang tooling for connecting
-nodes, by setting `strategy: Cluster.Strategy.Epmd` in the config. You can use a .erlang.hosts file by setting
+nodes, by setting `strategy: Cluster.Strategy.Epmd` in the config. You can use a .hosts.erlang file by setting
 `strategy: Cluster.Strategy.ErlangHosts` If set to `Cluster.Strategy.Gossip` it will make use of the multicast gossip protocol
 to dynamically form a cluster. If set to `Cluster.Strategy.Kubernetes`, it will use the Kubernetes API to query endpoints based
 on a basename and label selector, using the token and namespace injected into every pod; once it has a list of endpoints, it
@@ -86,7 +86,7 @@ currently under development. By default, the Erlang distribution is used.
 
 ### Clustering Strategies
 
-The `ErlangHosts` strategy relies on having a `.erlang.hosts` file in one of the following locations as specified in
+The `ErlangHosts` strategy relies on having a `.hosts.erlang` file in one of the following locations as specified in
 http://erlang.org/doc/man/net_adm.html#files:
 
  > File `.hosts.erlang` consists of a number of host names written as Erlang terms. It is looked for in the current work
