@@ -153,7 +153,7 @@ defmodule Cluster.Strategy do
   end
 
   defp ensure_exported!(mod, fun, arity) do
-    unless :erlang.function_exported(mod, fun, arity) do
+    unless Code.ensure_loaded?(mod) and function_exported?(mod, fun, arity) do
       raise "#{mod}.#{fun}/#{arity} is undefined!"
     end
   end
