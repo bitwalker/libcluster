@@ -60,14 +60,9 @@ defmodule Cluster.Strategy.DNSPoll do
            list_nodes: list_nodes
          } = state
        ) do
-    new_nodelist = state |> get_nodes() |> MapSet.new()
+    new_nodelist = state |> get_nodes()
     added = MapSet.difference(new_nodelist, state.meta)
     removed = MapSet.difference(state.meta, new_nodelist)
-
-    debug(topology, "nodes meta: #{inspect(state.meta)}")
-    debug(topology, "nodes discovered: #{inspect(new_nodelist)}")
-    debug(topology, "nodes to add: #{inspect(added)}")
-    debug(topology, "nodes to rem: #{inspect(removed)}")
 
     new_nodelist =
       case Strategy.disconnect_nodes(
@@ -120,21 +115,17 @@ defmodule Cluster.Strategy.DNSPoll do
     query = Keyword.fetch!(config, :query)
     node_basename = Keyword.fetch!(config, :node_basename)
 
-    debug(topology, "polling dns for #{query}")
+    debug(topology, "polling dns for '#{query}'")
     me = node()
 
-    new_nodes =
-      query
-      |> String.to_charlist()
-      |> :inet_res.lookup(:in, :a)
-      |> Enum.map(&format_node(&1, node_basename))
-      |> Enum.reject(fn n -> n == me end)
-
-    debug(topology, "found nodes #{inspect(new_nodes)}")
-
-    new_nodes
+    query
+    |> String.to_charlist()
+    |> :inet_res.lookup(:in, :a)
+    |> Enum.map(&format_node(&1, node_basename))
+    |> Enum.reject(fn n -> n == me end)
+    |> MapSet.new()
   end
 
   # turn an ip into a node name atom, assuming that all other node names looks similar to our own name
-  defp format_node({a, b, c, d}, sname), do: :"#{sname}@#{a}.#{b}.#{c}.#{d}"
+  defp format_node({a, b, c, d}, base_name), do: :"#{base_name}@#{a}.#{b}.#{c}.#{d}"
 end
