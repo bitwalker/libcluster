@@ -17,19 +17,18 @@ defmodule Cluster.Strategy.DNSPoll do
           dns_poll_example: [
             strategy: #{__MODULE__},
             config: [
-              poll_interval: 5_000,
+              polling_interval: 5_000,
               query: "my-app.example.com",
               node_basename: "my-app"]]]
   """
 
   use GenServer
-  # use Cluster.Strategy
   import Cluster.Logger
 
   alias Cluster.Strategy.State
   alias Cluster.Strategy
 
-  @default_poll_interval 5_000
+  @default_polling_interval 5_000
 
   def start_link(opts) do
     GenServer.start_link(__MODULE__, opts)
@@ -42,16 +41,9 @@ defmodule Cluster.Strategy.DNSPoll do
       connect: Keyword.fetch!(opts, :connect),
       disconnect: Keyword.fetch!(opts, :disconnect),
       list_nodes: Keyword.fetch!(opts, :list_nodes),
-      config: Keyword.get(opts, :config, [])
+      config: Keyword.get(opts, :config, []),
+      meta: MapSet.new([])
     }
-
-    query = Keyword.fetch!(state.config, :query)
-    node_basename = Keyword.fetch!(state.config, :node_basename)
-    poll_interval = Keyword.get(state.config, :poll_interval, @default_poll_interval)
-
-    state = %{state | meta: {poll_interval, query, node_basename}}
-
-    info(state.topology, "starting dns polling for #{query}")
 
     {:ok, do_poll(state)}
   end
@@ -60,48 +52,28 @@ defmodule Cluster.Strategy.DNSPoll do
   def handle_info(:poll, state), do: {:noreply, do_poll(state)}
   def handle_info(_, state), do: {:noreply, state}
 
-  defp do_poll(%State{meta: {poll_interval, query, node_basename}} = state) do
-    nodes = get_nodes(state.topology, query, node_basename)
+  defp do_poll(
+         %State{
+           topology: topology,
+           connect: connect,
+           disconnect: disconnect,
+           list_nodes: list_nodes
+         } = state
+       ) do
+    new_nodelist = state |> get_nodes() |> MapSet.new()
+    added = MapSet.difference(new_nodelist, state.meta)
+    removed = MapSet.difference(state.meta, new_nodelist)
 
-    nodes =
-      case Strategy.connect_nodes(
-             state.topology,
-             state.connect,
-             state.list_nodes,
-             nodes
-           ) do
-        :ok ->
-          nodes
-
-        {:error, bad_nodes} ->
-          # Remove the nodes which should have been added, but couldn't be for some reason
-          Enum.reduce(bad_nodes, nodes |> MapSet.new(), fn {n, _}, acc ->
-            MapSet.delete(acc, n)
-          end)
-      end
-
-    # reschedule a call to itself in poll_interval ms
-    Process.send_after(self(), :poll, poll_interval)
-
-    %{state | meta: {poll_interval, query, node_basename, nodes}}
-  end
-
-  defp do_poll(%State{meta: {poll_interval, query, node_basename, nodes}} = state) do
-    new_nodelist = state.topology |> get_nodes(query, node_basename) |> MapSet.new()
-
-    nodes = nodes |> MapSet.new()
-    added = MapSet.difference(new_nodelist, nodes)
-    removed = MapSet.difference(nodes, new_nodelist)
-
-    debug(state.topology, "nodes cur: #{inspect(nodes)}")
-    debug(state.topology, "nodes add: #{inspect(added)}")
-    debug(state.topology, "nodes rem: #{inspect(removed)}")
+    debug(topology, "nodes meta: #{inspect(state.meta)}")
+    debug(topology, "nodes discovered: #{inspect(new_nodelist)}")
+    debug(topology, "nodes to add: #{inspect(added)}")
+    debug(topology, "nodes to rem: #{inspect(removed)}")
 
     new_nodelist =
       case Strategy.disconnect_nodes(
-             state.topology,
-             state.disconnect,
-             state.list_nodes,
+             topology,
+             disconnect,
+             list_nodes,
              MapSet.to_list(removed)
            ) do
         :ok ->
@@ -116,9 +88,9 @@ defmodule Cluster.Strategy.DNSPoll do
 
     new_nodelist =
       case Strategy.connect_nodes(
-             state.topology,
-             state.connect,
-             state.list_nodes,
+             topology,
+             connect,
+             list_nodes,
              MapSet.to_list(added)
            ) do
         :ok ->
@@ -131,15 +103,23 @@ defmodule Cluster.Strategy.DNSPoll do
           end)
       end
 
-    Process.send_after(self(), :poll, poll_interval)
+    Process.send_after(self(), :poll, polling_interval(state))
 
-    %{state | meta: {poll_interval, query, node_basename, new_nodelist}}
+    %{state | :meta => new_nodelist}
+  end
+
+  defp polling_interval(%{config: config}) do
+    Keyword.get(config, :polling_interval, @default_polling_interval)
   end
 
   # query for all ips responding to a given dns query
   # format ips as node names
   # filter out me
-  defp get_nodes(topology, query, node_basename) do
+  defp get_nodes(%State{config: config, topology: topology}) do
+    # TODO check if config is correct
+    query = Keyword.fetch!(config, :query)
+    node_basename = Keyword.fetch!(config, :node_basename)
+
     debug(topology, "polling dns for #{query}")
     me = node()
 
