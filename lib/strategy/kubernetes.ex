@@ -55,6 +55,28 @@ defmodule Cluster.Strategy.Kubernetes do
               kubernetes_selector: "app=myapp",
               polling_interval: 10_000]]]
 
+  An example configuration for clustering with multiple apps:
+
+      config :libcluster,
+        topologies: [
+          k8s: [
+            strategy: Cluster.Strategy.Kubernetes,
+            config: [
+              kube_app: [
+                mode: :ip,
+                kubernetes_selector: "app=app1",
+                kubernetes_node_basename: "app1"
+              ],
+              kube_app: [
+                mode: :dns,
+                kubernetes_selector: "app=app2",
+                kubernetes_node_basename: "app2"
+              ],
+              polling_interval: 10_000
+            ]
+          ]
+        ]
+
   """
   use GenServer
   use Cluster.Strategy
@@ -170,6 +192,18 @@ defmodule Cluster.Strategy.Kubernetes do
 
   @spec get_nodes(State.t()) :: [atom()]
   defp get_nodes(%State{topology: topology, config: config}) do
+    kube_apps = case Keyword.get_values(config, :kube_app) do
+      [] -> config
+      ret -> ret
+    end
+    get_nodes(topology, kube_apps)
+  end
+
+  defp get_nodes(_, []), do: []
+  defp get_nodes(topology, [config| rest]) when is_list(config) do
+    get_nodes(topology, config) ++ get_nodes(topology, rest)
+  end
+  defp get_nodes(topology, config) do
     service_account_path =
       Keyword.get(config, :kubernetes_service_account_path, @service_account_path)
 
