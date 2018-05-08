@@ -3,7 +3,7 @@ defmodule Cluster.Mixfile do
 
   def project do
     [app: :libcluster,
-     version: "2.4.0",
+     version: "2.5.0",
      elixir: "~> 1.4",
      build_embedded: Mix.env == :prod,
      start_permanent: Mix.env == :prod,
