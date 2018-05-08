@@ -20,7 +20,7 @@ defmodule Cluster.Strategy.Kubernetes do
   `<ip-with-dashes>.<namespace>.pod.cluster.local`, e.g
   1-2-3-4.default.pod.cluster.local.
 
-  Getting `:ip` to work requires a bit fiddling in the container's CMD, for example:
+  Getting `:dns` to work requires a bit fiddling in the container's CMD, for example:
 
   ```yaml
   # deployment.yaml
