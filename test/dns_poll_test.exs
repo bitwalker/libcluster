@@ -72,4 +72,44 @@ defmodule Cluster.Strategy.DNSPollTest do
       refute_receive {:connect, _}, 100
     end)
   end
+
+  test "does not connect to anything with missing config params" do
+    capture_log(fn ->
+      [
+        topology: :dns_poll,
+        config: [
+          polling_interval: 100,
+          resolver: fn _query -> [{10, 0, 0, 1}] end
+        ],
+        connect: {Nodes, :connect, [self()]},
+        disconnect: {Nodes, :disconnect, [self()]},
+        list_nodes: {Nodes, :list_nodes, [[]]}
+      ]
+      |> DNSPoll.start_link()
+
+      refute_receive {:disconnect, _}, 100
+      refute_receive {:connect, _}, 100
+    end)
+  end
+
+  test "does not connect to anything with invalid config params" do
+    capture_log(fn ->
+      [
+        topology: :dns_poll,
+        config: [
+          query: :app,
+          node_basename: "",
+          polling_interval: 100,
+          resolver: fn _query -> [{10, 0, 0, 1}] end
+        ],
+        connect: {Nodes, :connect, [self()]},
+        disconnect: {Nodes, :disconnect, [self()]},
+        list_nodes: {Nodes, :list_nodes, [[]]}
+      ]
+      |> DNSPoll.start_link()
+
+      refute_receive {:disconnect, _}, 100
+      refute_receive {:connect, _}, 100
+    end)
+  end
 end

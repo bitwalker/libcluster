@@ -58,16 +58,9 @@ defmodule Cluster.Strategy.DNSPoll do
            list_nodes: list_nodes
          } = state
        ) do
-    new_nodelist = state |> get_nodes()
+    new_nodelist = state |> get_nodes() |> MapSet.new()
     added = MapSet.difference(new_nodelist, state.meta)
     removed = MapSet.difference(state.meta, new_nodelist)
-
-    # IO.inspect("+++++++++++++++++++++++++++++++++++")
-    # IO.inspect("nodes meta: #{inspect(state.meta)}")
-    # IO.inspect("nodes discovered: #{inspect(new_nodelist)}")
-    # IO.inspect("nodes to add: #{inspect(added)}")
-    # IO.inspect("nodes to rem: #{inspect(removed)}")
-    # IO.inspect("===================================")
 
     new_nodelist =
       case Strategy.disconnect_nodes(
@@ -112,10 +105,10 @@ defmodule Cluster.Strategy.DNSPoll do
     Keyword.get(config, :polling_interval, @default_polling_interval)
   end
 
-  # query for all ips responding to a given dns query
-  # format ips as node names
-  # filter out me
-  defp get_nodes(%State{config: config, topology: topology}) do
+  defp get_nodes(%State{config: config} = state) do
+    query = Keyword.fetch(config, :query)
+    node_basename = Keyword.fetch(config, :node_basename)
+
     resolver =
       Keyword.get(config, :resolver, fn query ->
         query
@@ -123,10 +116,15 @@ defmodule Cluster.Strategy.DNSPoll do
         |> :inet_res.lookup(:in, :a)
       end)
 
-    # TODO check if config is correct
-    query = Keyword.fetch!(config, :query)
-    node_basename = Keyword.fetch!(config, :node_basename)
+    resolve(query, node_basename, resolver, state)
+  end
 
+  # query for all ips responding to a given dns query
+  # format ips as node names
+  # filter out me
+  defp resolve({:ok, query}, {:ok, node_basename}, resolver, %State{topology: topology})
+       when is_binary(query) and is_binary(node_basename) and query != "" and
+              node_basename != "" do
     debug(topology, "polling dns for '#{query}'")
     me = node()
 
@@ -134,14 +132,27 @@ defmodule Cluster.Strategy.DNSPoll do
     |> resolver.()
     |> Enum.map(&format_node(&1, node_basename))
     |> Enum.reject(fn n -> n == me end)
-    |> MapSet.new()
   end
 
-  # defp resolve(query) do
-  #   query
-  #   |> String.to_charlist()
-  #   |> :inet_res.lookup(:in, :a)
-  # end
+  defp resolve({:ok, invalid_query}, {:ok, invalid_basename}, _resolver, %State{topology: topology}) do
+    warn(
+      topology,
+      "dns polling strategy is selected, but query or basename param is invalid: #{
+        inspect(%{query: invalid_query, node_basename: invalid_basename})
+      }"
+    )
+
+    []
+  end
+
+  defp resolve(:error, :error, _resolver, %State{topology: topology}) do
+    warn(
+      topology,
+      "dns polling strategy is selected, but query and basename params missed"
+    )
+
+    []
+  end
 
   # turn an ip into a node name atom, assuming that all other node names looks similar to our own name
   defp format_node({a, b, c, d}, base_name), do: :"#{base_name}@#{a}.#{b}.#{c}.#{d}"
