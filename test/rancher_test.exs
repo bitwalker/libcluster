@@ -21,7 +21,7 @@ defmodule Cluster.Strategy.RancherTest do
       end)
 
       capture_log(fn ->
-        bypass.port |> endpoint_url() |> valid_opts(:stacks) |> Rancher.start_link()
+        bypass.port |> endpoint_url() |> valid_opts(nil, :self) |> Rancher.start_link()
 
         assert_receive {:connect, :"node@10.0.0.1"}, 100
         assert_receive {:connect, :"node@10.0.0.2"}, 100
@@ -34,7 +34,7 @@ defmodule Cluster.Strategy.RancherTest do
       end)
 
       capture_log(fn ->
-        bypass.port |> endpoint_url() |> valid_opts() |> Rancher.start_link()
+        bypass.port |> endpoint_url() |> valid_opts("api", "app") |> Rancher.start_link()
 
         assert_receive {:connect, :"node@10.0.0.1"}, 100
         assert_receive {:connect, :"node@10.0.0.2"}, 100
@@ -49,7 +49,7 @@ defmodule Cluster.Strategy.RancherTest do
       capture_log(fn ->
         bypass.port
         |> endpoint_url()
-        |> valid_opts()
+        |> valid_opts("api", "app")
         |> put_in(
           [:list_nodes],
           {Nodes, :list_nodes, [[:"node@10.0.0.1", :"node@10.0.0.2"]]}
@@ -69,7 +69,7 @@ defmodule Cluster.Strategy.RancherTest do
       capture_log(fn ->
         bypass.port
         |> endpoint_url()
-        |> valid_opts()
+        |> valid_opts("api", "app")
         |> put_in(
           [:list_nodes],
           {Nodes, :list_nodes, [[:"node@10.0.0.1"]]}
@@ -90,7 +90,7 @@ defmodule Cluster.Strategy.RancherTest do
       capture_log(fn ->
         bypass.port
         |> endpoint_url()
-        |> valid_opts()
+        |> valid_opts("api", "app")
         |> Rancher.start_link()
 
         refute_receive {:disconnect, _}, 100
@@ -102,7 +102,8 @@ defmodule Cluster.Strategy.RancherTest do
       capture_log(fn ->
         base_opts()
         |> put_in([:config, :node_basename], "node")
-        |> put_in([:config, :stacks], [[name: "api", services: ["app"]]])
+        |> put_in([:config, :stack], "api")
+        |> put_in([:config, :service], "app")
         |> Rancher.start_link()
 
         refute_receive {:disconnect, _}, 100
@@ -118,7 +119,7 @@ defmodule Cluster.Strategy.RancherTest do
       failed = fn ->
         bypass.port
         |> endpoint_url()
-        |> valid_opts()
+        |> valid_opts("api", "app")
         |> put_in([:connect], {Nodes, :connect, [self(), false]})
         |> put_in([:disconnect], {Nodes, :disconnect, [self(), :failed]})
         |> put_in(
@@ -134,7 +135,7 @@ defmodule Cluster.Strategy.RancherTest do
     end
 
     test "does not connect to anything with wrong config" do
-      # missing stacks
+      # missing stack
       capture_log(fn ->
         base_opts()
         |> put_in([:config, :node_basename], "service")
@@ -147,17 +148,19 @@ defmodule Cluster.Strategy.RancherTest do
       # missing node_basename
       capture_log(fn ->
         base_opts()
-        |> put_in([:config, :stacks], [[name: "foo"]])
+        |> put_in([:config, :stack], "foo")
+        |> put_in([:config, :service], "bar")
         |> Rancher.start_link()
 
         refute_receive {:disconnect, _}, 100
         refute_receive {:connect, _}, 100
       end)
 
-      # empty stacks & node_basename
+      # empty stack & service & node_basename
       capture_log(fn ->
         base_opts()
-        |> put_in([:config, :stacks], [])
+        |> put_in([:config, :stack], "")
+        |> put_in([:config, :service], "")
         |> put_in([:config, :node_basename], "")
         |> Rancher.start_link()
 
@@ -186,17 +189,11 @@ defmodule Cluster.Strategy.RancherTest do
     ]
   end
 
-  def valid_opts(endpoint_url) do
+  def valid_opts(endpoint_url, stack_name, service_name) do
     base_opts()
     |> put_in([:config, :node_basename], "node")
-    |> put_in([:config, :stacks], [[name: "api", services: ["app"]]])
-    |> put_in([:config, :rancher_metadata_base_url], endpoint_url)
-  end
-
-  def valid_opts(endpoint_url, :stacks) do
-    base_opts()
-    |> put_in([:config, :node_basename], "node")
-    |> put_in([:config, :stacks], :self)
+    |> put_in([:config, :stack], stack_name) #api
+    |> put_in([:config, :service], service_name) #app
     |> put_in([:config, :rancher_metadata_base_url], endpoint_url)
   end
 end

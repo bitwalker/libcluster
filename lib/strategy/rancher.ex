@@ -37,14 +37,15 @@ defmodule Cluster.Strategy.Rancher do
             config: [
               node_basename: "myapp",
               polling_interval: 10_000,
-              stacks: :same]]]
+              service: :self]]]
 
-  Strategy also supports querying any amount of specified stacks and services:
+  Strategy also supports querying a specified stack and a service:
 
-    stacks: [
-      [name: "front-api", services: ["api"]],
-      [name: "user-service", services: ["service"]]
-    ]
+    config: [
+      node_basename: "myapp",
+      stack: "front-api",
+      service: "api"]
+
   """
 
   use GenServer
@@ -143,47 +144,52 @@ defmodule Cluster.Strategy.Rancher do
   defp get_nodes(%State{config: config} = state) do
     get_node_ips(
       Keyword.fetch(config, :node_basename),
-      Keyword.fetch(config, :stacks),
+      Keyword.fetch(config, :stack),
+      Keyword.fetch(config, :service),
       state
     )
   end
 
-  defp get_node_ips({:ok, app_name}, {:ok, :self}, state) do
+  defp get_node_ips({:ok, app_name}, _stack, {:ok, :self}, state) do
     parse_ips("latest/self/service", app_name, state)
   end
 
-  defp get_node_ips({:ok, app_name}, {:ok, stacks}, state)
-       when is_binary(app_name) and is_list(stacks) and app_name != "" and length(stacks) != 0 do
-    stacks
-    |> Enum.flat_map(fn stack ->
-      Enum.map(stack[:services], &"latest/stacks/#{stack[:name]}/services/#{&1}")
-    end)
-    |> Enum.flat_map(&parse_ips(&1, app_name, state))
+  defp get_node_ips({:ok, app_name}, {:ok, stack}, {:ok, service}, state)
+       when is_binary(app_name) and is_binary(stack) and app_name != "" and stack != "" and
+              is_binary(service) and service != "" do
+    parse_ips("latest/stacks/#{stack}/services/#{service}", app_name, state)
   end
 
-  defp get_node_ips({:ok, wrong_app_name}, {:ok, wrong_stacks}, %State{topology: topology}) do
+  defp get_node_ips({:ok, wrong_app_name}, {:ok, wrong_stack}, {:ok, wrong_service}, %State{
+         topology: topology
+       }) do
     warn(
       topology,
-      "rancher strategy is selected, but :node_basename or :stacks is invalid #{
-        inspect(%{node_basename: wrong_app_name, stacks: wrong_stacks})
+      "rancher strategy is selected, but configuration is invalid, please check: #{
+        inspect(%{node_basename: wrong_app_name, stack: wrong_stack, service: wrong_service})
       }"
     )
 
     []
   end
 
-  defp get_node_ips({:ok, _app_name}, :error, %State{topology: topology}) do
-    warn(topology, "rancher strategy is selected, but :stacks is missing")
-    []
-  end
-
-  defp get_node_ips(:error, {:ok, _stacks}, %State{topology: topology}) do
+  defp get_node_ips(:error, {:ok, _stack}, {:ok, _service}, %State{topology: topology}) do
     warn(topology, "rancher strategy is selected, but :node_basename is missing")
     []
   end
 
-  defp get_node_ips(:error, :error, %State{topology: topology}) do
-    warn(topology, "missing :node_basename or :stacks for rancher strategy")
+  defp get_node_ips({:ok, _app_name}, :error, _service, %State{topology: topology}) do
+    warn(topology, "rancher strategy is selected, but :stack is missing")
+    []
+  end
+
+  defp get_node_ips({:ok, _app_name}, {:ok, _stack}, :error, %State{topology: topology}) do
+    warn(topology, "rancher strategy is selected, but :service is missing")
+    []
+  end
+
+  defp get_node_ips(:error, :error, :error, %State{topology: topology}) do
+    warn(topology, "missing :node_basename, :stack & :service for rancher strategy")
     []
   end
 
