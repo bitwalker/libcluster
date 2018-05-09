@@ -30,9 +30,7 @@ defmodule Cluster.Strategy.DNSPoll do
 
   @default_polling_interval 5_000
 
-  def start_link(opts) do
-    GenServer.start_link(__MODULE__, opts)
-  end
+  def start_link(opts), do: GenServer.start_link(__MODULE__, opts)
 
   # setup initial state
   def init(opts) do
@@ -42,7 +40,7 @@ defmodule Cluster.Strategy.DNSPoll do
       disconnect: Keyword.fetch!(opts, :disconnect),
       list_nodes: Keyword.fetch!(opts, :list_nodes),
       config: Keyword.get(opts, :config, []),
-      meta: MapSet.new([])
+      meta: Keyword.get(opts, :meta, MapSet.new([]))
     }
 
     {:ok, do_poll(state)}
@@ -63,6 +61,13 @@ defmodule Cluster.Strategy.DNSPoll do
     new_nodelist = state |> get_nodes()
     added = MapSet.difference(new_nodelist, state.meta)
     removed = MapSet.difference(state.meta, new_nodelist)
+
+    # IO.inspect("+++++++++++++++++++++++++++++++++++")
+    # IO.inspect("nodes meta: #{inspect(state.meta)}")
+    # IO.inspect("nodes discovered: #{inspect(new_nodelist)}")
+    # IO.inspect("nodes to add: #{inspect(added)}")
+    # IO.inspect("nodes to rem: #{inspect(removed)}")
+    # IO.inspect("===================================")
 
     new_nodelist =
       case Strategy.disconnect_nodes(
@@ -111,6 +116,13 @@ defmodule Cluster.Strategy.DNSPoll do
   # format ips as node names
   # filter out me
   defp get_nodes(%State{config: config, topology: topology}) do
+    resolver =
+      Keyword.get(config, :resolver, fn query ->
+        query
+        |> String.to_charlist()
+        |> :inet_res.lookup(:in, :a)
+      end)
+
     # TODO check if config is correct
     query = Keyword.fetch!(config, :query)
     node_basename = Keyword.fetch!(config, :node_basename)
@@ -119,12 +131,17 @@ defmodule Cluster.Strategy.DNSPoll do
     me = node()
 
     query
-    |> String.to_charlist()
-    |> :inet_res.lookup(:in, :a)
+    |> resolver.()
     |> Enum.map(&format_node(&1, node_basename))
     |> Enum.reject(fn n -> n == me end)
     |> MapSet.new()
   end
+
+  # defp resolve(query) do
+  #   query
+  #   |> String.to_charlist()
+  #   |> :inet_res.lookup(:in, :a)
+  # end
 
   # turn an ip into a node name atom, assuming that all other node names looks similar to our own name
   defp format_node({a, b, c, d}, base_name), do: :"#{base_name}@#{a}.#{b}.#{c}.#{d}"
