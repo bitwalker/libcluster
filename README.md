@@ -166,18 +166,35 @@ And in vm.args:
 ```
 
 The Rancher strategy follows the steps of the Kubernetes one. It queries the [Rancher Metadata API][rancher-api] for the
-IPs associated with the running containers of the service that the node making the HTTP request belongs to. You must
-make sure that your nodes are configured to use longnames like :"<name>@<ip>" where the `name` must be the same
+IPs associated with the running containers of the specified stack.
+You must make sure that your nodes are configured to use longnames like :"<name>@<ip>" where the `name` must be the same
 as the `node_basename` config option of the topology and the `ip` must match the one assigned to the container of the
 node by Rancher.
+
+Strategy supports two types of stack specification:
 
 ```elixir
 config :libcluster,
   topologies: [
     rancher_example: [
       strategy: Cluster.Strategy.Rancher,
-      config: [node_basename: "myapp"]]]
+      config: [
+        node_basename: "myapp",
+        stack: :self]]]
 ```
+Provides IPs associated with the running containers of the service that the node making the HTTP request belongs to.
+
+```elixir
+config :libcluster,
+  topologies: [
+    rancher_example: [
+      strategy: Cluster.Strategy.Rancher,
+      config: [
+        node_basename: "myapp"
+        stack: "front-api",
+        service: "api"]]]
+```
+Allows to specify a stack and a service to query for cluster nodes.
 
 ### Third-Party Clustering Strategies
 

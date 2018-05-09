@@ -1,12 +1,12 @@
 defmodule Cluster.Strategy.Rancher do
   @moduledoc """
   This clustering strategy is specific to the Rancher container platform.
-  It works by querying the platform's metadata API for containers belonging to
-  the same service as the node and attempts to connect them.
+  It works by querying the platform's metadata API for containers specified in the
+  config and attempts to connect them.
   (see: http://rancher.com/docs/rancher/latest/en/rancher-services/metadata-service/)
 
   It assumes that all nodes share a base name and are using longnames of the form
-  `<basename@<ip>` where the `<ip>` is unique for each node.
+  `<basename>@<ip>` where the `<ip>` is unique for each node.
 
   A way to assign a name to a node on boot in an app running as a Distillery release is:
 
@@ -15,19 +15,20 @@ defmodule Cluster.Strategy.Rancher do
   ```sh
   #!/bin/sh
 
-  export CONTAINER_IP="$(hostname -I | cut -f1 -d' ')"
+  export CONTAINER_IP="$(hostname -i | cut -f1 -d' ')"
   export REPLACE_OS_VARS=true
+  export BASENAME=myapp
 
   /app/bin/app "$@"
   ```
 
   ```
   # vm.args
-  -name app@${CONTAINER_IP}
+  -name ${BASENAME}@${CONTAINER_IP}
   ```
 
-  An example configuration is below:
-
+  An example configuration for querying the platform's metadata API for containers belonging to
+  the same service as the node is below:
 
       config :libcluster,
         topologies: [
@@ -35,17 +36,27 @@ defmodule Cluster.Strategy.Rancher do
             strategy: #{__MODULE__},
             config: [
               node_basename: "myapp",
-              polling_interval: 10_000]]]
+              polling_interval: 10_000,
+              service: :self]]]
+
+  Strategy also supports querying a specified stack and a service:
+
+    config: [
+      node_basename: "myapp",
+      stack: "front-api",
+      service: "api"]
+
   """
 
   use GenServer
-  use Cluster.Strategy
   import Cluster.Logger
 
+  alias Cluster.Strategy
   alias Cluster.Strategy.State
 
   @default_polling_interval 5_000
   @rancher_metadata_base_url "http://rancher-metadata"
+  @headers [{'accept', 'application/json'}]
 
   def start_link(opts), do: GenServer.start_link(__MODULE__, opts)
 
@@ -56,7 +67,7 @@ defmodule Cluster.Strategy.Rancher do
       disconnect: Keyword.fetch!(opts, :disconnect),
       list_nodes: Keyword.fetch!(opts, :list_nodes),
       config: Keyword.fetch!(opts, :config),
-      meta: MapSet.new([])
+      meta: Keyword.get(opts, :meta, MapSet.new([]))
     }
 
     {:ok, load(state)}
@@ -82,12 +93,12 @@ defmodule Cluster.Strategy.Rancher do
            list_nodes: list_nodes
          } = state
        ) do
-    new_nodelist = MapSet.new(get_nodes(state))
+    new_nodelist = state |> get_nodes() |> MapSet.new()
     added = MapSet.difference(new_nodelist, state.meta)
     removed = MapSet.difference(state.meta, new_nodelist)
 
     new_nodelist =
-      case Cluster.Strategy.disconnect_nodes(
+      case Strategy.disconnect_nodes(
              topology,
              disconnect,
              list_nodes,
@@ -104,7 +115,12 @@ defmodule Cluster.Strategy.Rancher do
       end
 
     new_nodelist =
-      case Cluster.Strategy.connect_nodes(topology, connect, list_nodes, MapSet.to_list(added)) do
+      case Strategy.connect_nodes(
+             topology,
+             connect,
+             list_nodes,
+             MapSet.to_list(added)
+           ) do
         :ok ->
           new_nodelist
 
@@ -125,45 +141,84 @@ defmodule Cluster.Strategy.Rancher do
   end
 
   @spec get_nodes(State.t()) :: [atom()]
-  defp get_nodes(%State{topology: topology, config: config}) do
-    case Keyword.fetch!(config, :node_basename) do
-      app_name when is_binary(app_name) and app_name != "" ->
-        endpoints_path = "latest/self/service"
-        headers = [{'accept', 'application/json'}]
+  defp get_nodes(%State{config: config} = state) do
+    get_node_ips(
+      Keyword.fetch(config, :node_basename),
+      Keyword.fetch(config, :stack),
+      Keyword.fetch(config, :service),
+      state
+    )
+  end
 
-        case :httpc.request(
-               :get,
-               {'#{@rancher_metadata_base_url}/#{endpoints_path}', headers},
-               [],
-               []
-             ) do
-          {:ok, {{_version, 200, _status}, _headers, body}} ->
-            parse_response(app_name, Jason.decode!(body))
+  defp get_node_ips({:ok, app_name}, _stack, {:ok, :self}, state) do
+    parse_ips("latest/self/service", app_name, state)
+  end
 
-          {:ok, {{_version, code, status}, _headers, body}} ->
-            warn(
-              topology,
-              "cannot query Rancher Metadata API (#{code} #{status}): #{inspect(body)}"
-            )
+  defp get_node_ips({:ok, app_name}, {:ok, stack}, {:ok, service}, state)
+       when is_binary(app_name) and is_binary(stack) and app_name != "" and stack != "" and
+              is_binary(service) and service != "" do
+    parse_ips("latest/stacks/#{stack}/services/#{service}", app_name, state)
+  end
 
-            []
+  defp get_node_ips({:ok, wrong_app_name}, {:ok, wrong_stack}, {:ok, wrong_service}, %State{
+         topology: topology
+       }) do
+    warn(
+      topology,
+      "rancher strategy is selected, but configuration is invalid, please check: #{
+        inspect(%{node_basename: wrong_app_name, stack: wrong_stack, service: wrong_service})
+      }"
+    )
 
-          {:error, reason} ->
-            error(topology, "request to Rancher Metadata API failed!: #{inspect(reason)}")
-            []
-        end
+    []
+  end
 
-      app_name ->
+  defp get_node_ips(:error, {:ok, _stack}, {:ok, _service}, %State{topology: topology}) do
+    warn(topology, "rancher strategy is selected, but :node_basename is missing")
+    []
+  end
+
+  defp get_node_ips({:ok, _app_name}, :error, _service, %State{topology: topology}) do
+    warn(topology, "rancher strategy is selected, but :stack is missing")
+    []
+  end
+
+  defp get_node_ips({:ok, _app_name}, {:ok, _stack}, :error, %State{topology: topology}) do
+    warn(topology, "rancher strategy is selected, but :service is missing")
+    []
+  end
+
+  defp get_node_ips(:error, :error, :error, %State{topology: topology}) do
+    warn(topology, "missing :node_basename, :stack & :service for rancher strategy")
+    []
+  end
+
+  defp parse_ips(endpoint, app_name, %State{topology: topology, config: config}) do
+    base_url = Keyword.get(config, :rancher_metadata_base_url, @rancher_metadata_base_url)
+
+    case :httpc.request(:get, {'#{base_url}/#{endpoint}', @headers}, [], []) do
+      {:ok, {{_version, 200, _status}, _headers, body}} ->
+        parse_response(Jason.decode!(body), app_name)
+
+      {:ok, {{_version, code, status}, _headers, body}} ->
         warn(
           topology,
-          "rancher strategy is selected, but :node_basename is invalid, got: #{inspect(app_name)}"
+          "cannot query Rancher Metadata API (#{code} #{status}): #{inspect(body)}"
         )
 
+        []
+
+      {:error, reason} ->
+        error(topology, "request to Rancher Metadata API failed!: #{inspect(reason)}")
         []
     end
   end
 
-  defp parse_response(app_name, resp) do
+  defp parse_response(resp, app_name) when is_list(resp) do
+    Enum.flat_map(resp, &parse_response(&1, app_name))
+  end
+
+  defp parse_response(resp, app_name) when is_map(resp) do
     case resp do
       %{"containers" => containers} ->
         Enum.map(containers, fn %{"ips" => [ip | _]} -> :"#{app_name}@#{ip}" end)
@@ -172,4 +227,6 @@ defmodule Cluster.Strategy.Rancher do
         []
     end
   end
+
+  defp parse_response(_, _), do: []
 end
