@@ -2,6 +2,8 @@ defmodule Cluster.App do
   @doc false
   use Application
 
+  alias Cluster.Strategy
+
   def start(_type, _args) do
     import Supervisor.Spec, warn: false
 
@@ -41,9 +43,9 @@ defmodule Cluster.App do
 
   defp extract_args(spec) do
     config = Keyword.get(spec, :config, [])
-    connect_mfa = Keyword.get(spec, :connect, {:net_kernel, :connect, []})
-    disconnect_mfa = Keyword.get(spec, :disconnect, {:net_kernel, :disconnect, []})
-    list_nodes_mfa = Keyword.get(spec, :list_nodes, {:erlang, :nodes, [:connected]})
+    connect_mfa = Strategy.load_handler!(spec, :connect, {:net_kernel, :connect, []})
+    disconnect_mfa = Strategy.load_handler!(spec, :disconnect, {:net_kernel, :disconnect, []})
+    list_nodes_mfa = Strategy.load_handler!(spec, :list_nodes, {:erlang, :nodes, [:connected]})
 
     [
       connect: connect_mfa,

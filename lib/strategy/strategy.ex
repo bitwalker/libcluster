@@ -38,13 +38,11 @@ defmodule Cluster.Strategy do
       when is_list(nodes) do
     {connect_mod, connect_fun, connect_args} = connect
     {list_mod, list_fun, list_args} = list_nodes
-    ensure_exported!(list_mod, list_fun, length(list_args))
     need_connect = difference(nodes, apply(list_mod, list_fun, list_args))
 
     bad_nodes =
       Enum.reduce(need_connect, [], fn n, acc ->
         fargs = connect_args ++ [n]
-        ensure_exported!(connect_mod, connect_fun, length(fargs))
 
         case apply(connect_mod, connect_fun, fargs) do
           true ->
@@ -93,13 +91,11 @@ defmodule Cluster.Strategy do
       when is_list(nodes) do
     {disconnect_mod, disconnect_fun, disconnect_args} = disconnect
     {list_mod, list_fun, list_args} = list_nodes
-    ensure_exported!(list_mod, list_fun, length(list_args))
     need_disconnect = intersection(nodes, apply(list_mod, list_fun, list_args))
 
     bad_nodes =
       Enum.reduce(need_disconnect, [], fn n, acc ->
         fargs = disconnect_args ++ [n]
-        ensure_exported!(disconnect_mod, disconnect_fun, length(fargs))
 
         case apply(disconnect_mod, disconnect_fun, fargs) do
           true ->
@@ -136,6 +132,22 @@ defmodule Cluster.Strategy do
       [] -> :ok
       _ -> {:error, bad_nodes}
     end
+  end
+
+  @doc """
+  Read handler configuration and try to load its module.
+  If key is not found in opts, the default_value will be used.
+  """
+  @spec load_handler!(keyword, atom, any) :: mfa_tuple
+  def load_handler!(opts, key, default_value) do
+    ret = {key_mod, key_fun, key_args} = Keyword.get(opts, key, default_value)
+
+    case key do
+      :list_nodes -> ensure_exported!(key_mod, key_fun, length(key_args))
+      _ -> ensure_exported!(key_mod, key_fun, length(key_args) + 1)
+    end
+
+    ret
   end
 
   def intersection(_a, []), do: []
