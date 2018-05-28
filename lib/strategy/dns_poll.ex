@@ -71,6 +71,7 @@ defmodule Cluster.Strategy.DNSPoll do
       query
       |> String.to_charlist()
       |> :inet_res.lookup(:in, :a)
+      |> Enum.map(&:inet_parse.ntoa(&1))
       |> Enum.map(&format_node(&1, node_sname))
       |> Enum.reject(fn n -> n == me end)
 
@@ -81,9 +82,10 @@ defmodule Cluster.Strategy.DNSPoll do
     # reschedule a call to itself in poll_interval ms
     Process.send_after(self(), :poll, poll_interval)
 
-    %{state | meta: {poll_interval, query, node_sname, nodes}}
+    state
   end
 
   # turn an ip into a node name atom, assuming that all other node names looks similar to our own name
-  defp format_node({a, b, c, d}, sname), do: :"#{sname}@#{a}.#{b}.#{c}.#{d}"
+
+  defp format_node(address, sname) when is_binary(address) , do: :"#{sname}@#{address}"
 end
