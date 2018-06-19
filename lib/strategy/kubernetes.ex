@@ -7,7 +7,7 @@ defmodule Cluster.Strategy.Kubernetes do
 
   In order for your endpoints to be found they should be returned when you run:
 
-  `kubectl get endpoints -l app=myapp`
+      kubectl get endpoints -l app=myapp
 
   It assumes that all nodes share a base name, are using longnames, and are unique
   based on their FQDN, rather than the base hostname. In other words, in the following
@@ -22,17 +22,13 @@ defmodule Cluster.Strategy.Kubernetes do
 
   Getting `:dns` to work requires a bit fiddling in the container's CMD, for example:
 
-  ```yaml
-  # deployment.yaml
-  command: ["sh", "-c"]
-  args: ["POD_A_RECORD"]
-  args: ["export POD_A_RECORD=$(echo $POD_IP | sed 's/\./-/g') && /app/bin/app foreground"]
-  ```
+      # deployment.yaml
+      command: ["sh", "-c"]
+      args: ["POD_A_RECORD"]
+      args: ["export POD_A_RECORD=$(echo $POD_IP | sed 's/\./-/g') && /app/bin/app foreground"]
 
-  ```
-  # vm.args
-  -name app@<%= "${POD_A_RECORD}.${NAMESPACE}.pod.cluster.local" %>
-  ```
+      # vm.args
+      -name app@<%= "${POD_A_RECORD}.${NAMESPACE}.pod.cluster.local" %>
 
   (in an app running as a Distillery release).
 
@@ -66,18 +62,13 @@ defmodule Cluster.Strategy.Kubernetes do
   @kubernetes_master "kubernetes.default.svc.cluster.local"
   @service_account_path "/var/run/secrets/kubernetes.io/serviceaccount"
 
-  def start_link(opts), do: GenServer.start_link(__MODULE__, opts)
+  def start_link(args), do: GenServer.start_link(__MODULE__, args)
 
-  def init(opts) do
-    state = %State{
-      topology: Keyword.fetch!(opts, :topology),
-      connect: Keyword.fetch!(opts, :connect),
-      disconnect: Keyword.fetch!(opts, :disconnect),
-      list_nodes: Keyword.fetch!(opts, :list_nodes),
-      config: Keyword.fetch!(opts, :config),
-      meta: MapSet.new([])
-    }
+  def init([%State{meta: nil} = state]) do
+    init([%State{state | :meta => MapSet.new()}])
+  end
 
+  def init([%State{} = state]) do
     {:ok, load(state)}
   end
 
@@ -93,23 +84,16 @@ defmodule Cluster.Strategy.Kubernetes do
     {:noreply, state}
   end
 
-  defp load(
-         %State{
-           topology: topology,
-           connect: connect,
-           disconnect: disconnect,
-           list_nodes: list_nodes
-         } = state
-       ) do
+  defp load(%State{topology: topology, meta: meta} = state) do
     new_nodelist = MapSet.new(get_nodes(state))
-    added = MapSet.difference(new_nodelist, state.meta)
+    added = MapSet.difference(new_nodelist, meta)
     removed = MapSet.difference(state.meta, new_nodelist)
 
     new_nodelist =
       case Cluster.Strategy.disconnect_nodes(
              topology,
-             disconnect,
-             list_nodes,
+             state.disconnect,
+             state.list_nodes,
              MapSet.to_list(removed)
            ) do
         :ok ->
@@ -123,7 +107,12 @@ defmodule Cluster.Strategy.Kubernetes do
       end
 
     new_nodelist =
-      case Cluster.Strategy.connect_nodes(topology, connect, list_nodes, MapSet.to_list(added)) do
+      case Cluster.Strategy.connect_nodes(
+             topology,
+             state.connect,
+             state.list_nodes,
+             MapSet.to_list(added)
+           ) do
         :ok ->
           new_nodelist
 
@@ -136,10 +125,10 @@ defmodule Cluster.Strategy.Kubernetes do
 
     Process.send_after(self(), :load, polling_interval(state))
 
-    %{state | :meta => new_nodelist}
+    %State{state | :meta => new_nodelist}
   end
 
-  defp polling_interval(%{config: config}) do
+  defp polling_interval(%State{config: config}) do
     Keyword.get(config, :polling_interval, @default_polling_interval)
   end
 

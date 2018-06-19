@@ -30,19 +30,13 @@ defmodule Cluster.Strategy.DNSPoll do
 
   @default_polling_interval 5_000
 
-  def start_link(opts), do: GenServer.start_link(__MODULE__, opts)
+  def start_link(args), do: GenServer.start_link(__MODULE__, args)
 
-  # setup initial state
-  def init(opts) do
-    state = %State{
-      topology: Keyword.fetch!(opts, :topology),
-      connect: Keyword.fetch!(opts, :connect),
-      disconnect: Keyword.fetch!(opts, :disconnect),
-      list_nodes: Keyword.fetch!(opts, :list_nodes),
-      config: Keyword.get(opts, :config, []),
-      meta: Keyword.get(opts, :meta, MapSet.new([]))
-    }
+  def init([%State{meta: nil} = state]) do
+    init([%State{state | :meta => MapSet.new()}])
+  end
 
+  def init([%State{} = state]) do
     {:ok, do_poll(state)}
   end
 
@@ -123,8 +117,7 @@ defmodule Cluster.Strategy.DNSPoll do
   # format ips as node names
   # filter out me
   defp resolve({:ok, query}, {:ok, node_basename}, resolver, %State{topology: topology})
-       when is_binary(query) and is_binary(node_basename) and query != "" and
-              node_basename != "" do
+       when is_binary(query) and is_binary(node_basename) and query != "" and node_basename != "" do
     debug(topology, "polling dns for '#{query}'")
     me = node()
 
@@ -134,7 +127,9 @@ defmodule Cluster.Strategy.DNSPoll do
     |> Enum.reject(fn n -> n == me end)
   end
 
-  defp resolve({:ok, invalid_query}, {:ok, invalid_basename}, _resolver, %State{topology: topology}) do
+  defp resolve({:ok, invalid_query}, {:ok, invalid_basename}, _resolver, %State{
+         topology: topology
+       }) do
     warn(
       topology,
       "dns polling strategy is selected, but query or basename param is invalid: #{

@@ -32,7 +32,7 @@ defmodule Cluster.Strategy.KubernetesTest do
       use_cassette "kubernetes", custom: true do
         capture_log(fn ->
           start_supervised!({Kubernetes,
-           [
+           [%Cluster.Strategy.State{
              topology: :name,
              config: [
                kubernetes_node_basename: "test_basename",
@@ -45,8 +45,7 @@ defmodule Cluster.Strategy.KubernetesTest do
              connect: {Nodes, :connect, [self()]},
              disconnect: {Nodes, :disconnect, [self()]},
              list_nodes: {Nodes, :list_nodes, [[]]},
-             block_startup: true
-           ]})
+           }]})
 
           assert_receive {:connect, _}, 5_000
         end)

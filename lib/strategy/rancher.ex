@@ -47,18 +47,13 @@ defmodule Cluster.Strategy.Rancher do
   @default_polling_interval 5_000
   @rancher_metadata_base_url "http://rancher-metadata"
 
-  def start_link(opts), do: GenServer.start_link(__MODULE__, opts)
+  def start_link(args), do: GenServer.start_link(__MODULE__, args)
 
-  def init(opts) do
-    state = %State{
-      topology: Keyword.fetch!(opts, :topology),
-      connect: Keyword.fetch!(opts, :connect),
-      disconnect: Keyword.fetch!(opts, :disconnect),
-      list_nodes: Keyword.fetch!(opts, :list_nodes),
-      config: Keyword.fetch!(opts, :config),
-      meta: MapSet.new([])
-    }
+  def init([%State{meta: nil} = state]) do
+    init([%State{state | :meta => MapSet.new()}])
+  end
 
+  def init([%State{} = state]) do
     {:ok, load(state)}
   end
 

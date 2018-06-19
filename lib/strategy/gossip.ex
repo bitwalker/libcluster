@@ -26,6 +26,15 @@ defmodule Cluster.Strategy.Gossip do
               multicast_ttl: 1]]]
 
   A TTL of 1 will limit packets to the local network, and is the default TTL.
+
+  Debug logging is deactivated by default for this clustering strategy, but it can be easily activated by configuring the application:
+
+      use Mix.Config
+
+      config :libcluster,
+        debug: true
+
+  All the checks are done at runtime, so you can flip the debug level without being forced to shutdown your node.
   """
   use GenServer
   use Cluster.Strategy
@@ -37,25 +46,24 @@ defmodule Cluster.Strategy.Gossip do
   @default_addr {0, 0, 0, 0}
   @default_multicast_addr {230, 1, 1, 251}
 
-  def start_link(opts) do
-    GenServer.start_link(__MODULE__, opts)
+  def start_link(args) do
+    GenServer.start_link(__MODULE__, args)
   end
 
-  def init(opts) do
-    state = %State{
-      topology: Keyword.fetch!(opts, :topology),
-      connect: Keyword.fetch!(opts, :connect),
-      disconnect: Keyword.fetch!(opts, :disconnect),
-      list_nodes: Keyword.fetch!(opts, :list_nodes),
-      config: Keyword.fetch!(opts, :config)
-    }
+  def init([%State{config: config} = state]) do
+    port = Keyword.get(config, :port, @default_port)
 
-    port = Keyword.get(state.config, :port, @default_port)
-    ip = Keyword.get(state.config, :if_addr, @default_addr) |> sanitize_ip
-    ttl = Keyword.get(state.config, :multicast_ttl, 1)
+    ip =
+      config
+      |> Keyword.get(:if_addr, @default_addr)
+      |> sanitize_ip()
+
+    ttl = Keyword.get(config, :multicast_ttl, 1)
 
     multicast_addr =
-      Keyword.get(state.config, :multicast_addr, @default_multicast_addr) |> sanitize_ip
+      config
+      |> Keyword.get(:multicast_addr, @default_multicast_addr)
+      |> sanitize_ip()
 
     {:ok, socket} =
       :gen_udp.open(port, [
@@ -69,7 +77,7 @@ defmodule Cluster.Strategy.Gossip do
         add_membership: {multicast_addr, {0, 0, 0, 0}}
       ])
 
-    state = %{state | :meta => {multicast_addr, port, socket}}
+    state = %State{state | :meta => {multicast_addr, port, socket}}
     {:ok, state, 0}
   end
 
@@ -115,11 +123,11 @@ defmodule Cluster.Strategy.Gossip do
   # If the connection fails, it's likely because the cookie
   # is different, and thus a node we can ignore
   @spec handle_heartbeat(State.t(), binary) :: :ok
-  defp handle_heartbeat(
-         %State{connect: connect, list_nodes: list_nodes} = state,
-         <<"heartbeat::", rest::binary>>
-       ) do
+  defp handle_heartbeat(%State{} = state, <<"heartbeat::", rest::binary>>) do
     self = node()
+    connect = state.connect
+    list_nodes = state.list_nodes
+    topology = state.topology
 
     case :erlang.binary_to_term(rest) do
       %{node: ^self} ->
@@ -127,7 +135,7 @@ defmodule Cluster.Strategy.Gossip do
 
       %{node: n} when is_atom(n) ->
         debug(state.topology, "received heartbeat from #{n}")
-        Cluster.Strategy.connect_nodes(state.topology, connect, list_nodes, [n])
+        Cluster.Strategy.connect_nodes(topology, connect, list_nodes, [n])
         :ok
 
       _ ->

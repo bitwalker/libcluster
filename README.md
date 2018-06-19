@@ -1,41 +1,76 @@
-# libcluster
-
 [![Hex.pm Version](http://img.shields.io/hexpm/v/libcluster.svg?style=flat)](https://hex.pm/packages/libcluster)
 [![Build Status](https://travis-ci.org/bitwalker/libcluster.svg?branch=master)](https://travis-ci.org/bitwalker/libcluster)
 
 This library provides a mechanism for automatically forming clusters of Erlang nodes, with
 either static or dynamic node membership. It provides a publish/subscribe mechanism for cluster
 events so that you can easily be notified when cluster members join or leave, and provides a
-pluggable "strategy" system, with multicast UDP gossip, Kubernetes, and EPMD strategies all provided
-out of the box.
+pluggable "strategy" system, with a variety of strategies provided out of the
+box.
 
-View the docs [here](https://hexdocs.pm/libcluster).
+You can find supporting documentation [here](https://hexdocs.pm/libcluster).
 
 ## Features
 
-- automatic cluster formation/healing
-- choice of multiple clustering strategies out of the box:
-  - standard Distributed Erlang facilities (i.e. epmd)
-  - Distributed Erlang via a `.hosts.erlang` file
-  - multicast UDP gossip, using a configurable port/multicast address,
-  - the Kubernetes API, via a configurable label selector and node basename.
-  - the [Rancher Metadata API][rancher-api]
-- provide your own clustering strategies (e.g. an EC2 strategy, etc.)
-- provide your own topology plumbing (e.g. something other than standard Erlang distribution)
+- Automatic cluster formation/healing
+- Choice of multiple clustering strategies out of the box:
+  - Standard Distributed Erlang facilities (e.g. `epmd`, `.hosts.erlang`)
+  - Multicast UDP gossip, using a configurable port/multicast address,
+  - Kubernetes via it's metadata API using via a configurable label selector and
+    node basename; or alternatively, using DNS.
+  - Rancher, via it's [metadata API][rancher-api]
+- Easy to provide your own custom clustering strategies for your specific environment.
+- Easy to use provide your own distribution plumbing (i.e. something other than
+  Distributed Erlang), by implementing a small set of callbacks. This allows
+  `libcluster` to support projects like
+  [Partisan](https://github.com/lasp-lang/partisan).
 
 ## Installation
 
 ```elixir
 defp deps do
-  [{:libcluster, "~> 2.1"}]
+  [{:libcluster, "~> MAJ.MIN"}]
 end
 ```
 
-## An example configuration
+You can determine the latest version by running `mix hex.info libcluster` in
+your shell, or by going to the `libcluster` [page on Hex.pm](https://hex.pm/packages/libcluster).
 
-The following will help you understand the more descriptive text below. The configuration
-for libcluster can also be described as a spec for the clustering topologies and strategies
-which will be used.
+## Usage
+
+It is easy to get started using `libcluster`, simply decide which strategy you
+want to use to form a cluster, define a topology, and then start the `Cluster.Supervisor` module in
+the supervision tree of an application in your Elixir system, as demonstrated below:
+
+```elixir
+defmodule MyApp.App do
+  use Application
+
+  def start(_type, _args) do
+    topologies = [
+      example: [
+        strategy: Cluster.Strategy.Epmd,
+        config: [hosts: [:"a@127.0.0.1", :"b@127.0.0.1"]],
+      ]
+    ]
+    children = [
+      {Cluster.Supervisor, [topologies, name: MyApp.ClusterSupervisor]},
+      ..other children..
+    ]
+    Supervisor.start_link(children, strategy: :one_for_one, name: MyApp.Supervisor)
+  end
+end
+```
+
+The following section describes topology configuration in more detail.
+
+## Example Configuration
+
+You can configure `libcluster` either in your Mix config file (`config.exs`) as
+shown below, or construct the keyword list structure manually, as shown in the
+previous section. Either way, you need to pass the configuration to the
+`Cluster.Supervisor` module in it's start arguments. If you prefer to use Mix
+config files, then simply use `Application.get_env(:libcluster, :topologies)` to
+get the config that `Cluster.Supervisor` expects.
 
 ```elixir
 config :libcluster,
@@ -61,125 +96,47 @@ config :libcluster,
   ]
 ```
 
+## Strategy Configuration
+
+For instructions on configuring each strategy included with `libcluster`, please
+visit the docs on [HexDocs](https://hexdocs.pm/libcluster), and look at the
+module doc for the strategy you want to use. The authoritative documentation for
+each strategy is kept up to date with the module implementing it.
 
 ## Clustering
 
-You have five choices with regards to cluster management out of the box. You can use the built-in Erlang tooling for connecting
-nodes, by setting `strategy: Cluster.Strategy.Epmd` in the config. You can use a .hosts.erlang file by setting
-`strategy: Cluster.Strategy.ErlangHosts` If set to `Cluster.Strategy.Gossip` it will make use of the multicast gossip protocol
-to dynamically form a cluster. If set to `Cluster.Strategy.Kubernetes`, it will use the Kubernetes API to query endpoints based
-on a basename and label selector, using the token and namespace injected into every pod; once it has a list of endpoints, it
-uses that list to form a cluster, and keep it up to date. If set to `Cluster.Strategy.Rancher` it uses the
-[Rancher Metadata API][rancher-api] to form a cluster of nodes, from containers running under the same service.
+You have a handful of choices with regards to cluster management out of the box: 
 
-You can provide your own clustering strategy by setting `strategy: MyApp.Strategy` where `MyApp.Strategy` implements the
-`Cluster.Strategy` behaviour, which currently consists of exporting a `start_link/1` callback. You don't necessarily have
+- `Cluster.Strategy.Epmd`, which relies on `epmd` to connect to a configured set of hosts.
+- `Cluster.Strategy.ErlangHosts`, which uses the `.hosts.erlang` file to
+  determine which hosts to connect to.
+- `Cluster.Strategy.Gossip`, which uses multicast UDP to form a cluster between
+  nodes gossiping a heartbeat.
+- `Cluster.Strategy.Kubernetes`, which uses the Kubernetes Metadata API to query
+  nodes based on a label selector and basename.
+- `Cluster.Strategy.Kubernetes.DNS`, which uses DNS to join nodes under a shared
+  headless service in a given namespace.
+- `Cluster.Strategy.Rancher`, which like the Kubernetes strategy, uses a
+  metadata API to query nodes to cluster with.
+
+You can also define your own strategy implementation, by implementing the
+`Cluster.Strategy` behavior. This behavior expects you to implement a
+`start_link/1` callback, optionally overriding `child_spec/1` if needed. You don't necessarily have
 to start a process as part of your strategy, but since it's very likely you will need to maintain some state, designing your
-strategy as an OTP process (i.e. `GenServer`) is the ideal method, however any valid OTP process will work. `libcluster` starts
-the strategy process as part of it's supervision tree.
+strategy as an OTP process (e.g. `GenServer`) is the ideal method, however any
+valid OTP process will work. See the `Cluster.Strategy` module for details on
+the callbacks you need to implement and the arguments they receive.
 
 If you do not wish to use the default Erlang distribution protocol, you may provide an alternative means of connecting/
 disconnecting nodes via the `connect` and `disconnect` configuration options, if not using Erlang distribution you must provide a `list_nodes` implementation as well.
 They take a `{module, fun, args}` tuple, and append the node name being targeted to the `args` list. How to implement distribution in this way is left as an
 exercise for the reader, but I recommend taking a look at the [Firenest](https://github.com/phoenixframework/firenest) project
-currently under development. By default, the Erlang distribution is used.
+currently under development. By default, `libcluster` uses Distributed Erlang.
 
-### Clustering Strategies
+### Third-Party Strategies
 
-The `ErlangHosts` strategy relies on having a `.hosts.erlang` file in one of the following locations as specified in
-http://erlang.org/doc/man/net_adm.html#files:
-
- > File `.hosts.erlang` consists of a number of host names written as Erlang terms. It is looked for in the current work
- > directory, the user's home directory, and $OTP_ROOT (the root directory of Erlang/OTP), in that order.
-
-## Example:
-
-```erlang
-'super.eua.ericsson.se'.
-'renat.eua.ericsson.se'.
-'grouse.eua.ericsson.se'.
-'gauffin1.eua.ericsson.se'.
-^ (new line)
-```
-
-This can be configured using the following settings:
-
-```elixir
-config :libcluster,
-  topologies: [
-    erlang_hosts_example: [
-      strategy: Cluster.Strategy.ErlangHosts]]
-```
-
-
-The gossip protocol works by multicasting a heartbeat via UDP. The default configuration listens on all host interfaces,
-port 45892, and publishes via the multicast address `230.1.1.251`. These parameters can all be changed via the
-following config settings:
-
-```elixir
-config :libcluster,
-  topologies: [
-    gossip_example: [
-      strategy: Cluster.Strategy.Gossip,
-      config: [
-        port: 45892,
-        if_addr: {0,0,0,0},
-        multicast_addr: {230,1,1,251},
-        # a TTL of 1 remains on the local network,
-        # use this to change the number of jumps the
-        # multicast packets will make
-        multicast_ttl: 1]]]
-```
-
-Debug is deactivated by default for this clustering strategy, but it can be easily activated by configuring the application:
-
-```
-use Mix.Config
-
-config :libcluster,
-  debug: true
-```
-
-All the checks are done at runtime, so you can flip the debug level without being forced to shutdown your node.
-
-The Kubernetes strategy works by querying the Kubernetes API for all endpoints in the same namespace which match the provided
-selector, and getting the container IPs associated with them. Once all of the matching IPs have been found, it will attempt to
-establish node connections using the format `<kubernetes_node_basename>@<endpoint ip>`. You must make sure that your nodes are
-configured to use longnames, that the hostname matches the `kubernetes_node_basename` setting, and that the domain matches the
-IP address. Configuration might look like so:
-
-```elixir
-config :libcluster,
-  topologies: [
-    k8s_example: [
-      strategy: Cluster.Strategy.Kubernetes,
-      config: [
-        kubernetes_selector: "app=myapp",
-        kubernetes_node_basename: "myapp"]]]
-```
-
-And in vm.args:
-
-```
--name myapp@10.128.0.9
--setcookie test
-```
-
-The Rancher strategy follows the steps of the Kubernetes one. It queries the [Rancher Metadata API][rancher-api] for the
-IPs associated with the running containers of the service that the node making the HTTP request belongs to. You must
-make sure that your nodes are configured to use longnames like :"<name>@<ip>" where the `name` must be the same
-as the `node_basename` config option of the topology and the `ip` must match the one assigned to the container of the
-node by Rancher.
-
-```elixir
-config :libcluster,
-  topologies: [
-    rancher_example: [
-      strategy: Cluster.Strategy.Rancher,
-      config: [node_basename: "myapp"]]]
-```
-
-### Third-Party Clustering Strategies
+The following list of third-party strategy implementations is not comprehensive,
+but are known to exist.
 
 - [libcluster_ec2](https://github.com/kyleaa/libcluster_ec2) - EC2 clustering strategy based on tags
 - [libcluster_consul](https://github.com/arcz/libcluster_consul) - Consul clustering strategy

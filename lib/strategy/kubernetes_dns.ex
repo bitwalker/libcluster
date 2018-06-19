@@ -30,18 +30,13 @@ defmodule Cluster.Strategy.Kubernetes.DNS do
 
   @default_polling_interval 5_000
 
-  def start_link(opts), do: GenServer.start_link(__MODULE__, opts)
+  def start_link(args), do: GenServer.start_link(__MODULE__, args)
 
-  def init(opts) do
-    state = %State{
-      topology: Keyword.fetch!(opts, :topology),
-      connect: Keyword.fetch!(opts, :connect),
-      disconnect: Keyword.fetch!(opts, :disconnect),
-      list_nodes: Keyword.fetch!(opts, :list_nodes),
-      config: Keyword.fetch!(opts, :config),
-      meta: MapSet.new([])
-    }
+  def init([%State{meta: nil} = state]) do
+    init([%State{state | :meta => MapSet.new()}])
+  end
 
+  def init([%State{} = state]) do
     {:ok, load(state), 0}
   end
 
@@ -49,7 +44,7 @@ defmodule Cluster.Strategy.Kubernetes.DNS do
     handle_info(:load, state)
   end
 
-  def handle_info(:load, %State{} = state) do
+  def handle_info(:load, state) do
     {:noreply, load(state)}
   end
 
@@ -57,23 +52,16 @@ defmodule Cluster.Strategy.Kubernetes.DNS do
     {:noreply, state}
   end
 
-  defp load(
-         %State{
-           topology: topology,
-           connect: connect,
-           disconnect: disconnect,
-           list_nodes: list_nodes
-         } = state
-       ) do
+  defp load(%State{topology: topology, meta: meta} = state) do
     new_nodelist = MapSet.new(get_nodes(state))
-    added = MapSet.difference(new_nodelist, state.meta)
-    removed = MapSet.difference(state.meta, new_nodelist)
+    added = MapSet.difference(new_nodelist, meta)
+    removed = MapSet.difference(meta, new_nodelist)
 
     new_nodelist =
       case Cluster.Strategy.disconnect_nodes(
              topology,
-             disconnect,
-             list_nodes,
+             state.disconnect,
+             state.list_nodes,
              MapSet.to_list(removed)
            ) do
         :ok ->
@@ -87,7 +75,12 @@ defmodule Cluster.Strategy.Kubernetes.DNS do
       end
 
     new_nodelist =
-      case Cluster.Strategy.connect_nodes(topology, connect, list_nodes, MapSet.to_list(added)) do
+      case Cluster.Strategy.connect_nodes(
+             topology,
+             state.connect,
+             state.list_nodes,
+             MapSet.to_list(added)
+           ) do
         :ok ->
           new_nodelist
 
@@ -101,10 +94,10 @@ defmodule Cluster.Strategy.Kubernetes.DNS do
     Process.send_after(
       self(),
       :load,
-      polling_interval(state.config)
+      polling_interval(state)
     )
 
-    {:noreply, %{state | :meta => new_nodelist}}
+    {:noreply, %State{state | :meta => new_nodelist}}
   end
 
   @spec get_nodes(State.t()) :: [atom()]
@@ -114,7 +107,7 @@ defmodule Cluster.Strategy.Kubernetes.DNS do
 
     cond do
       app_name != nil and service != nil ->
-        headless_service = Kernel.to_charlist(service)
+        headless_service = to_charlist(service)
 
         case :inet_res.getbyname(headless_service, :a) do
           {:ok, {:hostent, _fqdn, [], :inet, _value, addresses}} ->
@@ -143,11 +136,12 @@ defmodule Cluster.Strategy.Kubernetes.DNS do
     end
   end
 
-  defp polling_interval(config),
-    do: Keyword.get(config, :polling_interval, @default_polling_interval)
+  defp polling_interval(%State{config: config}) do
+    Keyword.get(config, :polling_interval, @default_polling_interval)
+  end
 
-  defp parse_response(adresses, app_name) do
-    adresses
+  defp parse_response(addresses, app_name) do
+    addresses
     |> Enum.map(&:inet_parse.ntoa(&1))
     |> Enum.map(&"#{app_name}@#{&1}")
     |> Enum.map(&String.to_atom(&1))

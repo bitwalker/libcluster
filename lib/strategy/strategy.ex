@@ -5,26 +5,25 @@ defmodule Cluster.Strategy do
   defmacro __using__(_) do
     quote do
       @behaviour Cluster.Strategy
+
+      @impl true
+      def child_spec(args) do
+        %{id: __MODULE__, type: :worker, start: {__MODULE__, :start_link, [args]}}
+      end
+
+      defoverridable child_spec: 1
     end
   end
 
-  @type topology :: atom()
-  @type bad_nodes :: [{node(), reason :: term()}]
-  @type mfa_tuple :: {module(), atom(), [term()]}
-  @type strategy_opts :: [topology: atom(), connect: mfa_tuple, disconnect: mfa_tuple]
+  @type topology :: atom
+  @type bad_nodes :: [{node, reason :: term}]
+  @type mfa_tuple :: {module, atom, [term]}
+  @type strategy_args :: [Cluster.Strategy.State.t()]
 
+  # Required for supervision of the strategy
+  @callback child_spec(strategy_args) :: Supervisor.child_spec()
   # Starts the strategy
-  @callback start_link(strategy_opts) :: {:ok, pid} | :ignore | {:error, reason :: term}
-
-  @doc false
-  def connect_nodes(topology, {_mod, _fun, _args} = connect_mfa, nodes) do
-    IO.warn(
-      "connect_nodes/3 has been deprecated, please update your strategy to use connect_nodes/4"
-    )
-
-    list_nodes_mfa = {:erlang, :nodes, [:connected]}
-    connect_nodes(topology, connect_mfa, list_nodes_mfa, nodes)
-  end
+  @callback start_link(strategy_args) :: {:ok, pid} | :ignore | {:error, reason :: term}
 
   @doc """
   Given a list of node names, attempts to connect to all of them.
@@ -71,16 +70,6 @@ defmodule Cluster.Strategy do
     end
   end
 
-  @doc false
-  def disconnect_nodes(topology, {_, _, _} = disconnect_mfa, nodes) do
-    IO.warn(
-      "disconnect_nodes/3 has been deprecated, please update your strategy to use disconnect_nodes/4"
-    )
-
-    list_nodes_mfa = {:erlang, :nodes, [:connected]}
-    disconnect_nodes(topology, disconnect_mfa, list_nodes_mfa, nodes)
-  end
-
   @doc """
   Given a list of node names, attempts to disconnect from all of them.
   Returns `:ok` if all nodes disconnected, or `{:error, [{node, reason}, ..]}`
@@ -88,7 +77,7 @@ defmodule Cluster.Strategy do
 
   All failures are logged.
   """
-  @spec disconnect_nodes(topology, mfa_tuple, [atom()]) :: :ok | {:error, bad_nodes}
+  @spec disconnect_nodes(topology, mfa_tuple, mfa_tuple, [atom()]) :: :ok | {:error, bad_nodes}
   def disconnect_nodes(topology, {_, _, _} = disconnect, {_, _, _} = list_nodes, nodes)
       when is_list(nodes) do
     {disconnect_mod, disconnect_fun, disconnect_args} = disconnect
@@ -153,7 +142,7 @@ defmodule Cluster.Strategy do
   end
 
   defp ensure_exported!(mod, fun, arity) do
-    unless :erlang.function_exported(mod, fun, arity) do
+    unless function_exported?(mod, fun, arity) do
       raise "#{mod}.#{fun}/#{arity} is undefined!"
     end
   end

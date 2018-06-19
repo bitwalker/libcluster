@@ -3,8 +3,12 @@ defmodule Cluster.Logger do
   require Logger
 
   def debug(t, msg) do
-    if Application.get_env(:libcluster, :debug, false) do
-      log(:debug, t, msg)
+    case Application.get_env(:libcluster, :debug, false) do
+      dbg when dbg in [nil, false, "false"] ->
+        :ok
+
+      _ ->
+        log(:debug, t, msg)
     end
   end
 

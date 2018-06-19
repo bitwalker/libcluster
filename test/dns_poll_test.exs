@@ -10,7 +10,7 @@ defmodule Cluster.Strategy.DNSPollTest do
   describe "start_link/1" do
     test "adds new nodes" do
       capture_log(fn ->
-        [
+        [%Cluster.Strategy.State{
           topology: :dns_poll,
           config: [
             polling_interval: 100,
@@ -21,7 +21,7 @@ defmodule Cluster.Strategy.DNSPollTest do
           connect: {Nodes, :connect, [self()]},
           disconnect: {Nodes, :disconnect, [self()]},
           list_nodes: {Nodes, :list_nodes, [[]]}
-        ]
+        }]
         |> DNSPoll.start_link()
 
         assert_receive {:connect, :"node@10.0.0.1"}, 100
@@ -32,7 +32,7 @@ defmodule Cluster.Strategy.DNSPollTest do
 
   test "removes nodes" do
     capture_log(fn ->
-      [
+      [%Cluster.Strategy.State{
         topology: :dns_poll,
         config: [
           polling_interval: 100,
@@ -44,7 +44,7 @@ defmodule Cluster.Strategy.DNSPollTest do
         disconnect: {Nodes, :disconnect, [self()]},
         list_nodes: {Nodes, :list_nodes, [[:"node@10.0.0.1", :"node@10.0.0.2"]]},
         meta: MapSet.new([:"node@10.0.0.1", :"node@10.0.0.2"])
-      ]
+      }]
       |> DNSPoll.start_link()
 
       assert_receive {:disconnect, :"node@10.0.0.2"}, 100
@@ -53,7 +53,7 @@ defmodule Cluster.Strategy.DNSPollTest do
 
   test "keeps state" do
     capture_log(fn ->
-      [
+      [%Cluster.Strategy.State{
         topology: :dns_poll,
         config: [
           polling_interval: 100,
@@ -65,7 +65,7 @@ defmodule Cluster.Strategy.DNSPollTest do
         disconnect: {Nodes, :disconnect, [self()]},
         list_nodes: {Nodes, :list_nodes, [[:"node@10.0.0.1"]]},
         meta: MapSet.new([:"node@10.0.0.1"])
-      ]
+      }]
       |> DNSPoll.start_link()
 
       refute_receive {:disconnect, _}, 100
@@ -75,7 +75,7 @@ defmodule Cluster.Strategy.DNSPollTest do
 
   test "does not connect to anything with missing config params" do
     capture_log(fn ->
-      [
+      [%Cluster.Strategy.State{
         topology: :dns_poll,
         config: [
           polling_interval: 100,
@@ -84,7 +84,7 @@ defmodule Cluster.Strategy.DNSPollTest do
         connect: {Nodes, :connect, [self()]},
         disconnect: {Nodes, :disconnect, [self()]},
         list_nodes: {Nodes, :list_nodes, [[]]}
-      ]
+      }]
       |> DNSPoll.start_link()
 
       refute_receive {:disconnect, _}, 100
@@ -94,7 +94,7 @@ defmodule Cluster.Strategy.DNSPollTest do
 
   test "does not connect to anything with invalid config params" do
     capture_log(fn ->
-      [
+      [%Cluster.Strategy.State{
         topology: :dns_poll,
         config: [
           query: :app,
@@ -105,7 +105,7 @@ defmodule Cluster.Strategy.DNSPollTest do
         connect: {Nodes, :connect, [self()]},
         disconnect: {Nodes, :disconnect, [self()]},
         list_nodes: {Nodes, :list_nodes, [[]]}
-      ]
+      }]
       |> DNSPoll.start_link()
 
       refute_receive {:disconnect, _}, 100

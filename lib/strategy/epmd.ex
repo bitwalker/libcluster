@@ -15,28 +15,15 @@ defmodule Cluster.Strategy.Epmd do
   """
   use Cluster.Strategy
 
-  def child_spec(opts) do
-    %{
-      id: __MODULE__,
-      start: {__MODULE__, :start_link, [opts]},
-      type: :worker,
-      restart: :permanent,
-      shutdown: 500
-    }
-  end
+  alias Cluster.Strategy.State
 
-  def start_link(opts) do
-    topology = Keyword.fetch!(opts, :topology)
-    config = Keyword.get(opts, :config, [])
-    connect = Keyword.fetch!(opts, :connect)
-    list_nodes = Keyword.fetch!(opts, :list_nodes)
-
+  def start_link([%State{config: config} = state]) do
     case Keyword.get(config, :hosts, []) do
       [] ->
         :ignore
 
       nodes when is_list(nodes) ->
-        Cluster.Strategy.connect_nodes(topology, connect, list_nodes, nodes)
+        Cluster.Strategy.connect_nodes(state.topology, state.connect, state.list_nodes, nodes)
         :ignore
     end
   end
