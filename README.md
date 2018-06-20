@@ -54,7 +54,7 @@ defmodule MyApp.App do
     ]
     children = [
       {Cluster.Supervisor, [topologies, [name: MyApp.ClusterSupervisor]]},
-      ..other children..
+      # ..other children..
     ]
     Supervisor.start_link(children, strategy: :one_for_one, name: MyApp.Supervisor)
   end
@@ -82,16 +82,13 @@ config :libcluster,
       config: [hosts: [:"a@127.0.0.1", :"b@127.0.0.1"]],
       # The function to use for connecting nodes. The node
       # name will be appended to the argument list. Optional
-      connect: {:net_kernel, :connect, []},
+      connect: {:net_kernel, :connect_node, []},
       # The function to use for disconnecting nodes. The node
       # name will be appended to the argument list. Optional
-      disconnect: {:net_kernel, :disconnect, []},
+      disconnect: {:erlang, :disconnect_node, []},
       # The function to use for listing nodes.
       # This function must return a list of node names. Optional
       list_nodes: {:erlang, :nodes, [:connected]},
-      # A list of options for the supervisor child spec
-      # of the selected strategy. Optional
-      child_spec: [restart: :transient]
     ]
   ]
 ```
