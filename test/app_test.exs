@@ -29,8 +29,8 @@ defmodule Cluster.AppTest do
 
       assert_receive {:opts, state}
       assert :test == state.topology
-      assert {:net_kernel, :connect, []} = state.connect
-      assert {:net_kernel, :disconnect, []} = state.disconnect
+      assert {:net_kernel, :connect_node, []} = state.connect
+      assert {:erlang, :disconnect_node, []} = state.disconnect
       assert {:erlang, :nodes, [:connected]} = state.list_nodes
       assert [caller: _] = state.config
     end
