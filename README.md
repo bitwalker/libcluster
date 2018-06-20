@@ -53,7 +53,7 @@ defmodule MyApp.App do
       ]
     ]
     children = [
-      {Cluster.Supervisor, [topologies, name: MyApp.ClusterSupervisor]},
+      {Cluster.Supervisor, [topologies, [name: MyApp.ClusterSupervisor]]},
       ..other children..
     ]
     Supervisor.start_link(children, strategy: :one_for_one, name: MyApp.Supervisor)
