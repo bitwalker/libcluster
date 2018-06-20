@@ -20,11 +20,11 @@ defmodule Cluster.Supervisor do
           Supervisor.start_link(children, strategy: :one_for_one, name: MyApp.Supervisor)
         end
       end
-      
+
   The `topologies` configuration structure shown above can be built manually,
   like shown, so that you can load config at runtime in a way that best
   suits your application; or if you don't need to do any special config
-  handling, you can use the Mix config file, and just use 
+  handling, you can use the Mix config file, and just use
   `Application.get_env(:libcluster, :topologies)`. That config would look like so:
 
       config :libcluster,
