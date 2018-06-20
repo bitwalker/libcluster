@@ -69,8 +69,8 @@ defmodule Cluster.Supervisor do
   defp build_initial_state(spec) do
     topology = Keyword.fetch!(spec, :topology)
     config = Keyword.get(spec, :config, [])
-    connect_mfa = Keyword.get(spec, :connect, {:net_kernel, :connect, []})
-    disconnect_mfa = Keyword.get(spec, :disconnect, {:net_kernel, :disconnect, []})
+    connect_mfa = Keyword.get(spec, :connect, {:net_kernel, :connect_node, []})
+    disconnect_mfa = Keyword.get(spec, :disconnect, {:erlang, :disconnect_node, []})
     list_nodes_mfa = Keyword.get(spec, :list_nodes, {:erlang, :nodes, [:connected]})
 
     %Cluster.Strategy.State{
