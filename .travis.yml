@@ -3,9 +3,11 @@ language: elixir
 elixir:
   - 1.6
 otp_release:
-  - 19.3
   - 20.2
-script: "MIX_ENV=test mix do deps.get, test"
+  - 21.0
+script:
+  - "mix format --check-formatted --dry-run"
+  - "MIX_ENV=test mix do deps.get, test"
 notifications:
   recipients:
     - paulschoenfelder@gmail.com
