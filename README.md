@@ -13,7 +13,7 @@ You can find supporting documentation [here](https://hexdocs.pm/libcluster).
 
 - Automatic cluster formation/healing
 - Choice of multiple clustering strategies out of the box:
-  - Standard Distributed Erlang facilities (e.g. `epmd`, `.hosts.erlang`)
+  - Standard Distributed Erlang facilities (e.g. `epmd`, `.hosts.erlang`), which supports IP-based or DNS-based names
   - Multicast UDP gossip, using a configurable port/multicast address,
   - Kubernetes via it's metadata API using via a configurable label selector and
     node basename; or alternatively, using DNS.
