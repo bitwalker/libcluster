@@ -38,7 +38,11 @@ defmodule Cluster.Strategy do
     {connect_mod, connect_fun, connect_args} = connect
     {list_mod, list_fun, list_args} = list_nodes
     ensure_exported!(list_mod, list_fun, length(list_args))
-    need_connect = difference(nodes, apply(list_mod, list_fun, list_args))
+    current_node = Node.self
+    need_connect = 
+      nodes
+      |> difference(apply(list_mod, list_fun, list_args))
+      |> Enum.reject(fn n -> current_node == n end)
 
     bad_nodes =
       Enum.reduce(need_connect, [], fn n, acc ->
@@ -83,7 +87,11 @@ defmodule Cluster.Strategy do
     {disconnect_mod, disconnect_fun, disconnect_args} = disconnect
     {list_mod, list_fun, list_args} = list_nodes
     ensure_exported!(list_mod, list_fun, length(list_args))
-    need_disconnect = intersection(nodes, apply(list_mod, list_fun, list_args))
+    current_node = Node.self
+    need_disconnect = 
+      nodes
+      |> intersection(apply(list_mod, list_fun, list_args))
+      |> Enum.reject(fn n -> current_node == n end)
 
     bad_nodes =
       Enum.reduce(need_disconnect, [], fn n, acc ->
