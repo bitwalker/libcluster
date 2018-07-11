@@ -97,7 +97,7 @@ defmodule Cluster.Strategy.Kubernetes.DNS do
       polling_interval(state)
     )
 
-    {:noreply, %State{state | :meta => new_nodelist}}
+    %State{state | :meta => new_nodelist}
   end
 
   @spec get_nodes(State.t()) :: [atom()]
