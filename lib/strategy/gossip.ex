@@ -51,6 +51,8 @@ defmodule Cluster.Strategy.Gossip do
   @default_port 45892
   @default_addr {0, 0, 0, 0}
   @default_multicast_addr {230, 1, 1, 251}
+  @sol_socket 0xFFFF
+  @so_reuseport 0x0200
 
   def start_link(args) do
     GenServer.start_link(__MODULE__, args)
@@ -71,8 +73,8 @@ defmodule Cluster.Strategy.Gossip do
       |> Keyword.get(:multicast_addr, @default_multicast_addr)
       |> sanitize_ip()
 
-    {:ok, socket} =
-      :gen_udp.open(port, [
+    options =
+      [
         :binary,
         active: true,
         ip: ip,
@@ -81,11 +83,29 @@ defmodule Cluster.Strategy.Gossip do
         multicast_ttl: ttl,
         multicast_loop: true,
         add_membership: {multicast_addr, {0, 0, 0, 0}}
-      ])
+      ] ++ reuse_port()
+
+    {:ok, socket} = :gen_udp.open(port, options)
 
     secret = Keyword.get(config, :secret, nil)
     state = %State{state | :meta => {multicast_addr, port, socket, secret}}
     {:ok, state, 0}
+  end
+
+  defp reuse_port() do
+    case :os.type() do
+      {:unix, os_name} ->
+        cond do
+          os_name in [:darwin, :freebsd, :openbsd, :netbsd] ->
+            [{:raw, @sol_socket, @so_reuseport, <<1::native-32>>}]
+
+          true ->
+            []
+        end
+
+      _ ->
+        []
+    end
   end
 
   defp sanitize_ip(input) do
