@@ -97,19 +97,20 @@ defmodule Cluster.Strategy.Kubernetes.DNS do
       polling_interval(state)
     )
 
-    {:noreply, %State{state | :meta => new_nodelist}}
+    %State{state | :meta => new_nodelist}
   end
 
   @spec get_nodes(State.t()) :: [atom()]
   defp get_nodes(%State{topology: topology, config: config}) do
     app_name = Keyword.fetch!(config, :application_name)
     service = Keyword.fetch!(config, :service)
+    resolver = Keyword.get(config, :resolver, &:inet_res.getbyname(&1, :a))
 
     cond do
       app_name != nil and service != nil ->
         headless_service = to_charlist(service)
 
-        case :inet_res.getbyname(headless_service, :a) do
+        case resolver.(headless_service) do
           {:ok, {:hostent, _fqdn, [], :inet, _value, addresses}} ->
             parse_response(addresses, app_name)
 
