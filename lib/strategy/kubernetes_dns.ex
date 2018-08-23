@@ -32,6 +32,7 @@ defmodule Cluster.Strategy.Kubernetes.DNS do
 
   def start_link(args), do: GenServer.start_link(__MODULE__, args)
 
+  @impl true
   def init([%State{meta: nil} = state]) do
     init([%State{state | :meta => MapSet.new()}])
   end
@@ -40,6 +41,7 @@ defmodule Cluster.Strategy.Kubernetes.DNS do
     {:ok, load(state), 0}
   end
 
+  @impl true
   def handle_info(:timeout, state) do
     handle_info(:load, state)
   end

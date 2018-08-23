@@ -58,6 +58,7 @@ defmodule Cluster.Strategy.Gossip do
     GenServer.start_link(__MODULE__, args)
   end
 
+  @impl true
   def init([%State{config: config} = state]) do
     port = Keyword.get(config, :port, @default_port)
 
@@ -120,6 +121,7 @@ defmodule Cluster.Strategy.Gossip do
   end
 
   # Send stuttered heartbeats
+  @impl true
   def handle_info(:timeout, state), do: handle_info(:heartbeat, state)
 
   def handle_info(:heartbeat, %State{meta: {multicast_addr, port, socket, _}} = state) do
