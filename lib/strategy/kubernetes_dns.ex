@@ -1,7 +1,8 @@
 defmodule Cluster.Strategy.Kubernetes.DNS do
   @moduledoc """
-  This clustering strategy works by loading all your Erlang nodes (within Pods) in the current Kubernetes
-  namespace. It will fetch the addresses of all pods under a shared headless service and attempt to connect.
+  This clustering strategy works by loading all your Erlang nodes (within Pods) in the current [Kubernetes
+  namespace](https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/). 
+  It will fetch the addresses of all pods under a shared headless service and attempt to connect.
   It will continually monitor and update its connections every 5s.
 
   It assumes that all Erlang nodes were launched under a base name, are using longnames, and are unique
