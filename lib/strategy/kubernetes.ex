@@ -20,26 +20,34 @@ defmodule Cluster.Strategy.Kubernetes do
   `<ip-with-dashes>.<namespace>.pod.cluster.local`, e.g
   1-2-3-4.default.pod.cluster.local.
 
-  Getting `:dns` to work requires a bit fiddling in the container's CMD, for example:
-
-      # deployment.yaml
-      command: ["sh", "-c"]
-      args: ["POD_A_RECORD"]
-      args: ["export POD_A_RECORD=$(echo $POD_IP | sed 's/\./-/g') && /app/bin/app foreground"]
+  Getting `:dns` to work requires setting the `POD_A_RECORD` environment variable before
+  the application starts. If you use Distillery you can set it in your `pre_configure` hook:
+  
+      # pre_configure
+      export POD_A_RECORD=$(echo $POD_IP | sed 's/\./-/g')
 
       # vm.args
       -name app@<%= "${POD_A_RECORD}.${NAMESPACE}.pod.cluster.local" %>
-
-  (in an app running as a Distillery release).
+      
+  To set the `NAMESPACE` and `POD_ID` environment variables you can configure your pod as follows:
+  
+      # deployment.yaml
+      env:
+      - name: NAMESPACE
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.namespace
+      - name: POD_IP
+        valueFrom:
+          fieldRef:
+            fieldPath: status.podIP
 
   The benefit of using `:dns` over `:ip` is that you can establish a remote shell (as well as
   run observer) by using `kubectl port-forward` in combination with some entries in `/etc/hosts`.
 
-
   Defaults to `:ip`.
 
   An example configuration is below:
-
 
       config :libcluster,
         topologies: [
