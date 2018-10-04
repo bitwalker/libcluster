@@ -8,13 +8,16 @@ defmodule Cluster.Logger do
         :ok
 
       _ ->
-        log(:debug, t, msg)
+        Logger.debug(log_message(t, msg))
     end
   end
 
-  def info(t, msg), do: log(:info, t, msg)
-  def warn(t, msg), do: log(:warn, t, msg)
-  def error(t, msg), do: log(:error, t, msg)
+  def info(t, msg), do: Logger.info(log_message(t, msg))
+  def warn(t, msg), do: Logger.warn(log_message(t, msg))
+  def error(t, msg), do: Logger.error(log_message(t, msg))
 
-  defp log(level, t, msg), do: Logger.log(level, "[libcluster:#{t}] #{msg}")
+  @compile {:inline, log_message: 2}
+  defp log_message(t, msg) do
+    "[libcluster:#{t}] #{msg}"
+  end
 end
