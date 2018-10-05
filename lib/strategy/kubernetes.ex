@@ -22,7 +22,7 @@ defmodule Cluster.Strategy.Kubernetes do
 
   Getting `:dns` to work requires setting the `POD_A_RECORD` environment variable before
   the application starts. If you use Distillery you can set it in your `pre_configure` hook:
-  
+
       # pre_configure
       export POD_A_RECORD=$(echo $POD_IP | sed 's/\./-/g')
 
@@ -30,7 +30,7 @@ defmodule Cluster.Strategy.Kubernetes do
       -name app@<%= "${POD_A_RECORD}.${NAMESPACE}.pod.cluster.local" %>
       
   To set the `NAMESPACE` and `POD_ID` environment variables you can configure your pod as follows:
-  
+
       # deployment.yaml
       env:
       - name: NAMESPACE
