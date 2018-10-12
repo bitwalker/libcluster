@@ -198,7 +198,7 @@ defmodule Cluster.Strategy.Kubernetes do
           end
 
         headers = [{'authorization', 'Bearer #{token}'}]
-        http_options = [ssl: [verify: :verify_none]]
+        http_options = [ssl: [verify: :verify_none], timeout: 15000]
 
         case :httpc.request(:get, {'https://#{master}/#{path}', headers}, http_options, []) do
           {:ok, {{_version, 200, _status}, _headers, body}} ->
