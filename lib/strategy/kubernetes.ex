@@ -175,7 +175,7 @@ defmodule Cluster.Strategy.Kubernetes do
   end
 
   @spec get_nodes(State.t()) :: [atom()]
-  defp get_nodes(%State{topology: topology, config: config}) do
+  defp get_nodes(%State{topology: topology, config: config, meta: meta}) do
     service_account_path =
       Keyword.get(config, :kubernetes_service_account_path, @service_account_path)
 
@@ -214,11 +214,11 @@ defmodule Cluster.Strategy.Kubernetes do
 
           {:ok, {{_version, code, status}, _headers, body}} ->
             warn(topology, "cannot query kubernetes (#{code} #{status}): #{inspect(body)}")
-            []
+            meta
 
           {:error, reason} ->
             error(topology, "request to kubernetes failed!: #{inspect(reason)}")
-            []
+            meta
         end
 
       app_name == nil ->
