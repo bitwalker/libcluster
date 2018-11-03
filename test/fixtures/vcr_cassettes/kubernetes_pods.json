@@ -1,0 +1,34 @@
+[
+  {
+    "request": {
+      "body": "",
+      "headers": {
+        "authorization": "***"
+      },
+      "method": "get",
+      "options": {
+        "httpc_options": [],
+        "http_options": {
+          "ssl": "[verify: :verify_none]"
+        }
+      },
+      "request_body": "",
+      "url": "https://cluster.localhost/api/v1/namespaces/__libcluster_test/pods?labelSelector=app=test_selector"
+    },
+    "response": {
+      "binary": false,
+      "body": "{\"kind\":\"PodList\",\"apiVersion\":\"v1\",\"metadata\":{\"selfLink\":\"SELFLINK_PLACEHOLDER\",\"resourceVersion\":\"17042410\"},\"items\":[{\"metadata\":{\"name\":\"development-development\",\"namespace\":\"airatel-service-localization\",\"selfLink\":\"SELFLINK_PLACEHOLDER\",\"uid\":\"7e3faf1e-0294-11e8-bcad-42010a9c01cc\",\"resourceVersion\":\"17037787\",\"creationTimestamp\":\"2018-01-26T12:29:03Z\",\"labels\":{\"app\":\"development\",\"chart\":\"CHART_PLACEHOLDER\"}},\"status\":{\"podIP\": \"10.48.33.136\"}}]}\n",
+      "headers": {
+        "date": "Fri, 26 Jan 2018 13:18:46 GMT",
+        "content-length": "877",
+        "content-type": "application/json"
+      },
+      "status_code": [
+        "HTTP/1.1",
+        200,
+        "OK"
+      ],
+      "type": "ok"
+    }
+  }
+]

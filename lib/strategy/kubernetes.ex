@@ -3,11 +3,16 @@ defmodule Cluster.Strategy.Kubernetes do
   This clustering strategy works by loading all endpoints in the current Kubernetes
   namespace with the configured label. It will fetch the addresses of all endpoints with
   that label and attempt to connect. It will continually monitor and update its
-  connections every 5s.
+  connections every 5s. Alternatively the IP can be looked up from the pods directly
+  by setting `kubernetes_ip_lookup_mode` to `:pods`.
 
   In order for your endpoints to be found they should be returned when you run:
 
       kubectl get endpoints -l app=myapp
+
+  In order for your pods to be found they should be returned when you run:
+
+      kubectl get pods -l app=myapp
 
   It assumes that all nodes share a base name, are using longnames, and are unique
   based on their FQDN, rather than the base hostname. In other words, in the following
@@ -23,24 +28,26 @@ defmodule Cluster.Strategy.Kubernetes do
   Getting `:dns` to work requires setting the `POD_A_RECORD` environment variable before
   the application starts. If you use Distillery you can set it in your `pre_configure` hook:
 
-      # pre_configure
-      export POD_A_RECORD=$(echo $POD_IP | sed 's/\./-/g')
+    # deployment.yaml
+    command: ["sh", "-c"]
+    args: ["POD_A_RECORD"]
+    args: ["export POD_A_RECORD=$(echo $POD_IP | sed 's/\./-/g') && /app/bin/app foreground"]
 
-      # vm.args
-      -name app@<%= "${POD_A_RECORD}.${NAMESPACE}.pod.cluster.local" %>
-      
+    # vm.args
+    -name app@<%= "${POD_A_RECORD}.${NAMESPACE}.pod.cluster.local" %>
+
   To set the `NAMESPACE` and `POD_ID` environment variables you can configure your pod as follows:
 
-      # deployment.yaml
-      env:
-      - name: NAMESPACE
-        valueFrom:
-          fieldRef:
-            fieldPath: metadata.namespace
-      - name: POD_IP
-        valueFrom:
-          fieldRef:
-            fieldPath: status.podIP
+    # deployment.yaml
+    env:
+    - name: NAMESPACE
+      valueFrom:
+        fieldRef:
+          fieldPath: metadata.namespace
+    - name: POD_IP
+      valueFrom:
+        fieldRef:
+          fieldPath: status.podIP
 
   The benefit of using `:dns` over `:ip` is that you can establish a remote shell (as well as
   run observer) by using `kubectl port-forward` in combination with some entries in `/etc/hosts`.
@@ -168,31 +175,37 @@ defmodule Cluster.Strategy.Kubernetes do
   end
 
   @spec get_nodes(State.t()) :: [atom()]
-  defp get_nodes(%State{topology: topology, config: config}) do
+  defp get_nodes(%State{topology: topology, config: config, meta: meta}) do
     service_account_path =
       Keyword.get(config, :kubernetes_service_account_path, @service_account_path)
 
     token = get_token(service_account_path)
     namespace = get_namespace(service_account_path)
     app_name = Keyword.fetch!(config, :kubernetes_node_basename)
+    cluster_name = Keyword.get(config, :kubernetes_cluster_name, "cluster")
     selector = Keyword.fetch!(config, :kubernetes_selector)
+    ip_lookup_mode = Keyword.get(config, :kubernetes_ip_lookup_mode, :endpoints)
     master = Keyword.get(config, :kubernetes_master, @kubernetes_master)
 
     cond do
       app_name != nil and selector != nil ->
         selector = URI.encode(selector)
-        endpoints_path = "api/v1/namespaces/#{namespace}/endpoints?labelSelector=#{selector}"
-        headers = [{'authorization', 'Bearer #{token}'}]
-        http_options = [ssl: [verify: :verify_none]]
 
-        case :httpc.request(
-               :get,
-               {'https://#{master}/#{endpoints_path}', headers},
-               http_options,
-               []
-             ) do
+        path =
+          case ip_lookup_mode do
+            :endpoints -> "api/v1/namespaces/#{namespace}/endpoints?labelSelector=#{selector}"
+            :pods -> "api/v1/namespaces/#{namespace}/pods?labelSelector=#{selector}"
+          end
+
+        headers = [{'authorization', 'Bearer #{token}'}]
+        http_options = [ssl: [verify: :verify_none], timeout: 15000]
+
+        case :httpc.request(:get, {'https://#{master}/#{path}', headers}, http_options, []) do
           {:ok, {{_version, 200, _status}, _headers, body}} ->
-            parse_response(Keyword.get(config, :mode, :ip), app_name, Jason.decode!(body))
+            parse_response(ip_lookup_mode, Jason.decode!(body))
+            |> Enum.map(fn node_info ->
+              format_node(Keyword.get(config, :mode, :ip), node_info, app_name, cluster_name)
+            end)
 
           {:ok, {{_version, 403, _status}, _headers, body}} ->
             %{"message" => msg} = Jason.decode!(body)
@@ -201,11 +214,11 @@ defmodule Cluster.Strategy.Kubernetes do
 
           {:ok, {{_version, code, status}, _headers, body}} ->
             warn(topology, "cannot query kubernetes (#{code} #{status}): #{inspect(body)}")
-            []
+            meta
 
           {:error, reason} ->
             error(topology, "request to kubernetes failed!: #{inspect(reason)}")
-            []
+            meta
         end
 
       app_name == nil ->
@@ -230,32 +243,7 @@ defmodule Cluster.Strategy.Kubernetes do
     end
   end
 
-  defp parse_response(:ip, app_name, resp) do
-    case resp do
-      %{"items" => items} when is_list(items) ->
-        Enum.reduce(items, [], fn
-          %{"subsets" => subsets}, acc when is_list(subsets) ->
-            addrs =
-              Enum.flat_map(subsets, fn
-                %{"addresses" => addresses} when is_list(addresses) ->
-                  Enum.map(addresses, fn %{"ip" => ip} -> :"#{app_name}@#{ip}" end)
-
-                _ ->
-                  []
-              end)
-
-            acc ++ addrs
-
-          _, acc ->
-            acc
-        end)
-
-      _ ->
-        []
-    end
-  end
-
-  defp parse_response(:dns, app_name, resp) do
+  defp parse_response(:endpoints, resp) do
     case resp do
       %{"items" => items} when is_list(items) ->
         Enum.reduce(items, [], fn
@@ -264,7 +252,7 @@ defmodule Cluster.Strategy.Kubernetes do
               Enum.flat_map(subsets, fn
                 %{"addresses" => addresses} when is_list(addresses) ->
                   Enum.map(addresses, fn %{"ip" => ip, "targetRef" => %{"namespace" => namespace}} ->
-                    format_dns_record(app_name, ip, namespace)
+                    %{ip: ip, namespace: namespace}
                   end)
 
                 _ ->
@@ -282,8 +270,30 @@ defmodule Cluster.Strategy.Kubernetes do
     end
   end
 
-  defp format_dns_record(app_name, ip, namespace) do
+  defp parse_response(:pods, resp) do
+    case resp do
+      %{"items" => items} when is_list(items) ->
+        Enum.map(items, fn
+          %{
+            "status" => %{"podIP" => ip},
+            "metadata" => %{"namespace" => ns}
+          } ->
+            %{ip: ip, namespace: ns}
+
+          _ ->
+            nil
+        end)
+        |> Enum.filter(&(&1 != nil))
+
+      _ ->
+        []
+    end
+  end
+
+  defp format_node(:ip, %{ip: ip}, app_name, _cluster_name), do: :"#{app_name}@#{ip}"
+
+  defp format_node(:dns, %{ip: ip, namespace: namespace}, app_name, cluster_name) do
     ip = String.replace(ip, ".", "-")
-    :"#{app_name}@#{ip}.#{namespace}.pod.cluster.local"
+    :"#{app_name}@#{ip}.#{namespace}.pod.#{cluster_name}.local"
   end
 end
