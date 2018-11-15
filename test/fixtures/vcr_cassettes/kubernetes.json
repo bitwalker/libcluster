@@ -30,5 +30,37 @@
       ],
       "type": "ok"
     }
+  },
+  {
+    "request": {
+      "body": "",
+      "headers": {
+        "authorization": "***"
+      },
+      "method": "get",
+      "options": {
+        "httpc_options": [],
+        "http_options": {
+          "ssl": "[verify: :verify_none]"
+        }
+      },
+      "request_body": "",
+      "url": "https://cluster.localhost/api/v1/namespaces/airatel-service-test/endpoints?labelSelector=app=test_selector"
+    },
+    "response": {
+      "binary": false,
+      "body": "{\"apiVersion\":\"v1\",\"items\":[{\"metadata\":{\"creationTimestamp\":\"2018-01-26T12:29:03Z\",\"labels\":{\"app\":\"development\",\"chart\":\"CHART_PLACEHOLDER\"},\"name\":\"development-development\",\"namespace\":\"airatel-service-test\",\"resourceVersion\":\"17037787\",\"selfLink\":\"SELFLINK_PLACEHOLDER\",\"uid\":\"7e3faf1e-0294-11e8-bcad-42010a9c01cc\"},\"subsets\":[{\"addresses\":[{\"ip\":\"10.48.33.134\",\"nodeName\":\"gke-jshmrtn-cluster-default-pool-a61da41f-db9x\",\"targetRef\":{\"kind\":\"Pod\",\"name\":\"development-4292695165-mgq9a\",\"namespace\":\"airatel-service-test\",\"resourceVersion\":\"17037783\",\"uid\":\"eb0f3e80-0295-11e8-bcad-42010a9c01cd\"}}],\"ports\":[{\"name\":\"web\",\"port\":8443,\"protocol\":\"TCP\"}]}]}],\"kind\":\"EndpointsList\",\"metadata\":{\"resourceVersion\":\"17042410\",\"selfLink\":\"SELFLINK_PLACEHOLDER\"}}",
+      "headers": {
+        "date": "Fri, 26 Jan 2018 13:18:46 GMT",
+        "content-length": "877",
+        "content-type": "application/json"
+      },
+      "status_code": [
+        "HTTP/1.1",
+        200,
+        "OK"
+      ],
+      "type": "ok"
+    }
   }
 ]
