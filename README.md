@@ -15,9 +15,9 @@ You can find supporting documentation [here](https://hexdocs.pm/libcluster).
 - Choice of multiple clustering strategies out of the box:
   - Standard Distributed Erlang facilities (e.g. `epmd`, `.hosts.erlang`), which supports IP-based or DNS-based names
   - Multicast UDP gossip, using a configurable port/multicast address,
-  - Kubernetes via it's metadata API using via a configurable label selector and
+  - Kubernetes via its metadata API using via a configurable label selector and
     node basename; or alternatively, using DNS.
-  - Rancher, via it's [metadata API][rancher-api]
+  - Rancher, via its [metadata API][rancher-api]
 - Easy to provide your own custom clustering strategies for your specific environment.
 - Easy to use provide your own distribution plumbing (i.e. something other than
   Distributed Erlang), by implementing a small set of callbacks. This allows
