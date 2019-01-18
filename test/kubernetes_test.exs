@@ -32,20 +32,49 @@ defmodule Cluster.Strategy.KubernetesTest do
       use_cassette "kubernetes", custom: true do
         capture_log(fn ->
           start_supervised!({Kubernetes,
-           [%Cluster.Strategy.State{
-             topology: :name,
-             config: [
-               kubernetes_node_basename: "test_basename",
-               kubernetes_selector: "app=test_selector",
-               # If you want to run the test freshly, you'll need to create a DNS Entry
-               kubernetes_master: "cluster.localhost",
-               kubernetes_service_account_path:
-                 Path.join([__DIR__, "fixtures", "kubernetes", "service_account"])
-             ],
-             connect: {Nodes, :connect, [self()]},
-             disconnect: {Nodes, :disconnect, [self()]},
-             list_nodes: {Nodes, :list_nodes, [[]]},
-           }]})
+           [
+             %Cluster.Strategy.State{
+               topology: :name,
+               config: [
+                 kubernetes_node_basename: "test_basename",
+                 kubernetes_selector: "app=test_selector",
+                 # If you want to run the test freshly, you'll need to create a DNS Entry
+                 kubernetes_master: "cluster.localhost",
+                 kubernetes_service_account_path:
+                   Path.join([__DIR__, "fixtures", "kubernetes", "service_account"])
+               ],
+               connect: {Nodes, :connect, [self()]},
+               disconnect: {Nodes, :disconnect, [self()]},
+               list_nodes: {Nodes, :list_nodes, [[]]}
+             }
+           ]})
+
+          assert_receive {:connect, _}, 5_000
+        end)
+      end
+    end
+
+    test "connect nodes from different namespaces" do
+      use_cassette "kubernetes", custom: true do
+        capture_log(fn ->
+          start_supervised!({Kubernetes,
+           [
+             %Cluster.Strategy.State{
+               topology: :name,
+               config: [
+                 kubernetes_node_basename: "test_basename",
+                 kubernetes_selector: "app=test_selector",
+                 kubernetes_namespace: "airatel-service-test",
+                 # If you want to run the test freshly, you'll need to create a DNS Entry
+                 kubernetes_master: "cluster.localhost",
+                 kubernetes_service_account_path:
+                   Path.join([__DIR__, "fixtures", "kubernetes", "service_account"])
+               ],
+               connect: {Nodes, :connect, [self()]},
+               disconnect: {Nodes, :disconnect, [self()]},
+               list_nodes: {Nodes, :list_nodes, [[]]}
+             }
+           ]})
 
           assert_receive {:connect, _}, 5_000
         end)
@@ -56,24 +85,28 @@ defmodule Cluster.Strategy.KubernetesTest do
       use_cassette "kubernetes", custom: true do
         capture_log(fn ->
           start_supervised!({Kubernetes,
-           [%Cluster.Strategy.State{
-             topology: :name,
-             config: [
-               kubernetes_node_basename: "test_basename",
-               kubernetes_cluster_name: "my_cluster",
-               mode: :dns,
-               kubernetes_selector: "app=test_selector",
-               # If you want to run the test freshly, you'll need to create a DNS Entry
-               kubernetes_master: "cluster.localhost",
-               kubernetes_service_account_path:
-                 Path.join([__DIR__, "fixtures", "kubernetes", "service_account"])
-             ],
-             connect: {Nodes, :connect, [self()]},
-             disconnect: {Nodes, :disconnect, [self()]},
-             list_nodes: {Nodes, :list_nodes, [[]]},
-           }]})
+           [
+             %Cluster.Strategy.State{
+               topology: :name,
+               config: [
+                 kubernetes_node_basename: "test_basename",
+                 kubernetes_cluster_name: "my_cluster",
+                 mode: :dns,
+                 kubernetes_selector: "app=test_selector",
+                 # If you want to run the test freshly, you'll need to create a DNS Entry
+                 kubernetes_master: "cluster.localhost",
+                 kubernetes_service_account_path:
+                   Path.join([__DIR__, "fixtures", "kubernetes", "service_account"])
+               ],
+               connect: {Nodes, :connect, [self()]},
+               disconnect: {Nodes, :disconnect, [self()]},
+               list_nodes: {Nodes, :list_nodes, [[]]}
+             }
+           ]})
 
-          assert_receive {:connect, :"test_basename@10-48-33-136.airatel-service-localization.pod.my_cluster.local"}, 5_000
+          assert_receive {:connect,
+                          :"test_basename@10-48-33-136.airatel-service-localization.pod.my_cluster.local"},
+                         5_000
         end)
       end
     end
@@ -82,21 +115,23 @@ defmodule Cluster.Strategy.KubernetesTest do
       use_cassette "kubernetes_pods", custom: true do
         capture_log(fn ->
           start_supervised!({Kubernetes,
-           [%Cluster.Strategy.State{
-             topology: :name,
-             config: [
-               kubernetes_node_basename: "test_basename",
-               kubernetes_selector: "app=test_selector",
-               # If you want to run the test freshly, you'll need to create a DNS Entry
-               kubernetes_master: "cluster.localhost",
-               kubernetes_ip_lookup_mode: :pods,
-               kubernetes_service_account_path:
-                 Path.join([__DIR__, "fixtures", "kubernetes", "service_account"])
-             ],
-             connect: {Nodes, :connect, [self()]},
-             disconnect: {Nodes, :disconnect, [self()]},
-             list_nodes: {Nodes, :list_nodes, [[]]},
-           }]})
+           [
+             %Cluster.Strategy.State{
+               topology: :name,
+               config: [
+                 kubernetes_node_basename: "test_basename",
+                 kubernetes_selector: "app=test_selector",
+                 # If you want to run the test freshly, you'll need to create a DNS Entry
+                 kubernetes_master: "cluster.localhost",
+                 kubernetes_ip_lookup_mode: :pods,
+                 kubernetes_service_account_path:
+                   Path.join([__DIR__, "fixtures", "kubernetes", "service_account"])
+               ],
+               connect: {Nodes, :connect, [self()]},
+               disconnect: {Nodes, :disconnect, [self()]},
+               list_nodes: {Nodes, :list_nodes, [[]]}
+             }
+           ]})
 
           assert_receive {:connect, :"test_basename@10.48.33.136"}, 5_000
         end)
@@ -107,24 +142,28 @@ defmodule Cluster.Strategy.KubernetesTest do
       use_cassette "kubernetes_pods", custom: true do
         capture_log(fn ->
           start_supervised!({Kubernetes,
-           [%Cluster.Strategy.State{
-             topology: :name,
-             config: [
-               kubernetes_node_basename: "test_basename",
-               kubernetes_selector: "app=test_selector",
-               # If you want to run the test freshly, you'll need to create a DNS Entry
-               kubernetes_master: "cluster.localhost",
-               kubernetes_ip_lookup_mode: :pods,
-               mode: :dns,
-               kubernetes_service_account_path:
-                 Path.join([__DIR__, "fixtures", "kubernetes", "service_account"])
-             ],
-             connect: {Nodes, :connect, [self()]},
-             disconnect: {Nodes, :disconnect, [self()]},
-             list_nodes: {Nodes, :list_nodes, [[]]},
-           }]})
+           [
+             %Cluster.Strategy.State{
+               topology: :name,
+               config: [
+                 kubernetes_node_basename: "test_basename",
+                 kubernetes_selector: "app=test_selector",
+                 # If you want to run the test freshly, you'll need to create a DNS Entry
+                 kubernetes_master: "cluster.localhost",
+                 kubernetes_ip_lookup_mode: :pods,
+                 mode: :dns,
+                 kubernetes_service_account_path:
+                   Path.join([__DIR__, "fixtures", "kubernetes", "service_account"])
+               ],
+               connect: {Nodes, :connect, [self()]},
+               disconnect: {Nodes, :disconnect, [self()]},
+               list_nodes: {Nodes, :list_nodes, [[]]}
+             }
+           ]})
 
-          assert_receive {:connect, :"test_basename@10-48-33-136.airatel-service-localization.pod.cluster.local"}, 5_000
+          assert_receive {:connect,
+                          :"test_basename@10-48-33-136.airatel-service-localization.pod.cluster.local"},
+                         5_000
         end)
       end
     end

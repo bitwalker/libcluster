@@ -62,7 +62,11 @@ defmodule Cluster.Supervisor do
     for {topology, spec} <- config do
       strategy = Keyword.fetch!(spec, :strategy)
       state = build_initial_state([{:topology, topology} | spec])
-      {strategy, [state]}
+
+      %{
+        id: state.topology,
+        start: {strategy, :start_link, [[state]]}
+      }
     end
   end
 

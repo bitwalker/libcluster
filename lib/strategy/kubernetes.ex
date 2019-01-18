@@ -64,6 +64,7 @@ defmodule Cluster.Strategy.Kubernetes do
               mode: :ip,
               kubernetes_node_basename: "myapp",
               kubernetes_selector: "app=myapp",
+              kubernetes_namespace: "my_namespace",
               polling_interval: 10_000]]]
 
   """
@@ -159,11 +160,11 @@ defmodule Cluster.Strategy.Kubernetes do
     end
   end
 
-  @spec get_namespace(String.t()) :: String.t()
+  @spec get_namespace(String.t(), String.t()) :: String.t()
   if Mix.env() == :test do
-    defp get_namespace(_service_account_path), do: "__libcluster_test"
+    defp get_namespace(_service_account_path, nil), do: "__libcluster_test"
   else
-    defp get_namespace(service_account_path) do
+    defp get_namespace(service_account_path, nil) do
       path = Path.join(service_account_path, "namespace")
 
       if File.exists?(path) do
@@ -174,13 +175,16 @@ defmodule Cluster.Strategy.Kubernetes do
     end
   end
 
+  defp get_namespace(_, namespace), do: namespace
+
   @spec get_nodes(State.t()) :: [atom()]
   defp get_nodes(%State{topology: topology, config: config, meta: meta}) do
     service_account_path =
       Keyword.get(config, :kubernetes_service_account_path, @service_account_path)
 
     token = get_token(service_account_path)
-    namespace = get_namespace(service_account_path)
+
+    namespace = get_namespace(service_account_path, Keyword.get(config, :kubernetes_namespace))
     app_name = Keyword.fetch!(config, :kubernetes_node_basename)
     cluster_name = Keyword.get(config, :kubernetes_cluster_name, "cluster")
     selector = Keyword.fetch!(config, :kubernetes_selector)
