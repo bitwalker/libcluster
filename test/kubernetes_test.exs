@@ -111,6 +111,37 @@ defmodule Cluster.Strategy.KubernetesTest do
       end
     end
 
+    test "works with hostname and cluster_name" do
+      use_cassette "kubernetes", custom: true do
+        capture_log(fn ->
+          start_supervised!({Kubernetes,
+           [
+             %Cluster.Strategy.State{
+               topology: :name,
+               config: [
+                 kubernetes_node_basename: "test_basename",
+                 kubernetes_cluster_name: "my_cluster",
+                 mode: :hostname,
+                 kubernetes_selector: "app=test_selector",
+                 kubernetes_service_name: "my_service",
+                 # If you want to run the test freshly, you'll need to create a DNS Entry
+                 kubernetes_master: "cluster.localhost",
+                 kubernetes_service_account_path:
+                   Path.join([__DIR__, "fixtures", "kubernetes", "service_account"])
+               ],
+               connect: {Nodes, :connect, [self()]},
+               disconnect: {Nodes, :disconnect, [self()]},
+               list_nodes: {Nodes, :list_nodes, [[]]}
+             }
+           ]})
+
+          assert_receive {:connect,
+                          :"test_basename@my-hostname-0.my_service.airatel-service-localization.svc.my_cluster.local"},
+                         5_000
+        end)
+      end
+    end
+
     test "works with pods" do
       use_cassette "kubernetes_pods", custom: true do
         capture_log(fn ->
