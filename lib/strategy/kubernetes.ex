@@ -20,8 +20,8 @@ defmodule Cluster.Strategy.Kubernetes do
   `kubernetes_node_basename`.
 
   `domain` would be the value configured in `mode` and can be either of type `:ip`
-  (the pod's ip, can be obtained by setting an env variable to status.podIP) or
-  `:dns`, which is the pod's internal A Record. This A Record has the format
+  (the pod's ip, can be obtained by setting an env variable to status.podIP), `:hostname`
+  or `:dns`, which is the pod's internal A Record. This A Record has the format
   `<ip-with-dashes>.<namespace>.pod.cluster.local`, e.g
   1-2-3-4.default.pod.cluster.local.
 
@@ -52,7 +52,17 @@ defmodule Cluster.Strategy.Kubernetes do
   The benefit of using `:dns` over `:ip` is that you can establish a remote shell (as well as
   run observer) by using `kubectl port-forward` in combination with some entries in `/etc/hosts`.
 
-  Defaults to `:ip`.
+  Using `:hostname` is useful when deploying your app to K8S as a stateful set.  In this case you can
+  set your erlang name as the fully qualified domain name of the pod which would be something similar to
+  `my-app-0.my-service-name.my-namespace.svc.cluster.local`.
+  e.g.
+  ```
+  # vm.args
+  -name app@<%=`(hostname -f)`%>
+  ```
+  In this case you must also set `kubernetes_service_name` to the name of the K8S service that is being queried.
+
+  `mode' defaults to `:ip`.
 
   An example configuration is below:
 
@@ -187,6 +197,7 @@ defmodule Cluster.Strategy.Kubernetes do
     namespace = get_namespace(service_account_path, Keyword.get(config, :kubernetes_namespace))
     app_name = Keyword.fetch!(config, :kubernetes_node_basename)
     cluster_name = Keyword.get(config, :kubernetes_cluster_name, "cluster")
+    service_name = Keyword.get(config, :kubernetes_service_name)
     selector = Keyword.fetch!(config, :kubernetes_selector)
     ip_lookup_mode = Keyword.get(config, :kubernetes_ip_lookup_mode, :endpoints)
     master = Keyword.get(config, :kubernetes_master, @kubernetes_master)
@@ -208,7 +219,13 @@ defmodule Cluster.Strategy.Kubernetes do
           {:ok, {{_version, 200, _status}, _headers, body}} ->
             parse_response(ip_lookup_mode, Jason.decode!(body))
             |> Enum.map(fn node_info ->
-              format_node(Keyword.get(config, :mode, :ip), node_info, app_name, cluster_name)
+              format_node(
+                Keyword.get(config, :mode, :ip),
+                node_info,
+                app_name,
+                cluster_name,
+                service_name
+              )
             end)
 
           {:ok, {{_version, 403, _status}, _headers, body}} ->
@@ -255,8 +272,9 @@ defmodule Cluster.Strategy.Kubernetes do
             addrs =
               Enum.flat_map(subsets, fn
                 %{"addresses" => addresses} when is_list(addresses) ->
-                  Enum.map(addresses, fn %{"ip" => ip, "targetRef" => %{"namespace" => namespace}} ->
-                    %{ip: ip, namespace: namespace}
+                  Enum.map(addresses, fn %{"ip" => ip, "targetRef" => %{"namespace" => namespace}} =
+                                           address ->
+                    %{ip: ip, namespace: namespace, hostname: address["hostname"]}
                   end)
 
                 _ ->
@@ -294,9 +312,20 @@ defmodule Cluster.Strategy.Kubernetes do
     end
   end
 
-  defp format_node(:ip, %{ip: ip}, app_name, _cluster_name), do: :"#{app_name}@#{ip}"
+  defp format_node(:ip, %{ip: ip}, app_name, _cluster_name, _service_name),
+    do: :"#{app_name}@#{ip}"
 
-  defp format_node(:dns, %{ip: ip, namespace: namespace}, app_name, cluster_name) do
+  defp format_node(
+         :hostname,
+         %{hostname: hostname, namespace: namespace},
+         app_name,
+         cluster_name,
+         service_name
+       ) do
+    :"#{app_name}@#{hostname}.#{service_name}.#{namespace}.svc.#{cluster_name}.local"
+  end
+
+  defp format_node(:dns, %{ip: ip, namespace: namespace}, app_name, cluster_name, _service_name) do
     ip = String.replace(ip, ".", "-")
     :"#{app_name}@#{ip}.#{namespace}.pod.#{cluster_name}.local"
   end
