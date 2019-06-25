@@ -12,12 +12,12 @@ defmodule Cluster.Strategy.EpmdTest do
       capture_log(fn ->
         :ignore = Epmd.start_link([%Cluster.Strategy.State{
              topology: :name,
-             config: [hosts: [:"foo@bar"]],
+             config: [hosts: [:foo@bar]],
              connect: {Cluster.Nodes, :connect, [self()]},
              list_nodes: {Cluster.Nodes, :list_nodes, [[]]}
         }])
 
-        assert_receive {:connect, :"foo@bar"}, 5_000
+        assert_receive {:connect, :foo@bar}, 5_000
       end)
     end
   end
