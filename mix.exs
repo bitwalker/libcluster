@@ -29,7 +29,7 @@ defmodule Cluster.Mixfile do
   end
 
   defp deps do
-    [{:ex_doc, "~> 0.19.3", only: :dev},
+    [{:ex_doc, "~> 0.20.0", only: :dev},
      {:dialyxir, "~> 0.5.1", only: :dev},
      {:exvcr, "~> 0.10.3", only: :test},
      {:jason, "~> 1.1.2"}]
