@@ -194,8 +194,7 @@ defmodule Cluster.Strategy.Kubernetes.DNSSRV do
         headless_service = to_charlist(service_k8s_path)
 
         case resolver.(headless_service) do
-          {:ok, {:hostent, _, _, :srv, _count, addresses}}
-          ->
+          {:ok, {:hostent, _, _, :srv, _count, addresses}} ->
             parse_response(addresses, app_name)
 
           {:error, reason} ->
@@ -227,8 +226,8 @@ defmodule Cluster.Strategy.Kubernetes.DNSSRV do
 
   defp parse_response(addresses, app_name) do
     addresses
-      |> Enum.map(&:erlang.list_to_binary(elem(&1, 3)))
-      |> Enum.map(&"#{app_name}@#{&1}")
-      |> Enum.map(&String.to_atom(&1))
+    |> Enum.map(&:erlang.list_to_binary(elem(&1, 3)))
+    |> Enum.map(&"#{app_name}@#{&1}")
+    |> Enum.map(&String.to_atom(&1))
   end
 end
