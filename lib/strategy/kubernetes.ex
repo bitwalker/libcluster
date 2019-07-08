@@ -114,7 +114,14 @@ defmodule Cluster.Strategy.Kubernetes do
 
   defp load(%State{topology: topology, meta: meta} = state) do
     new_nodelist = MapSet.new(get_nodes(state))
-    added = MapSet.difference(new_nodelist, meta)
+    nodes = Node.list()
+
+    added =
+      MapSet.union(
+        MapSet.difference(new_nodelist, meta),
+        MapSet.new(Enum.filter(new_nodelist, &(&1 not in nodes)))
+      )
+
     removed = MapSet.difference(state.meta, new_nodelist)
 
     new_nodelist =
