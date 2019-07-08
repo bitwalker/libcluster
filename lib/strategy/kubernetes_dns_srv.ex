@@ -198,7 +198,7 @@ defmodule Cluster.Strategy.Kubernetes.DNSSRV do
             parse_response(addresses, app_name)
 
           {:error, reason} ->
-            error(topology, "lookup against #{service} failed: #{inspect(reason)}")
+            error(topology, "#{inspect(headless_service)} : lookup against #{service} failed: #{inspect(reason)}")
             []
         end
 
