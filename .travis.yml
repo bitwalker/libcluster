@@ -4,9 +4,17 @@ elixir:
   - 1.6
   - 1.7
   - 1.8.1
+  - 1.9.0
 otp_release:
   - 20.2
   - 21.0
+  - 22.0
+
+matrix:
+  exclude:
+  - otp_release: 22.0
+    elixir: 1.6
+
 script:
   - "mix format --check-formatted --dry-run"
   - "MIX_ENV=test mix do deps.get, test"
