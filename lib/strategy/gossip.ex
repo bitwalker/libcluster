@@ -33,6 +33,10 @@ defmodule Cluster.Strategy.Gossip do
 
   A TTL of 1 will limit packets to the local network, and is the default TTL.
 
+  Optionally, `broadcast_only: true` option can be set which disables multicast and
+  only uses broadcasting. This limits connectivity to local network but works on in
+  scenarios where multicast is not enabled. Use `multicast_addr` as the broadcast address.
+
   Debug logging is deactivated by default for this clustering strategy, but it can be easily activated by configuring the application:
 
       use Mix.Config
