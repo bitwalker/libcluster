@@ -37,6 +37,18 @@ defmodule Cluster.Strategy.Gossip do
   only uses broadcasting. This limits connectivity to local network but works on in
   scenarios where multicast is not enabled. Use `multicast_addr` as the broadcast address.
 
+  Example for broadcast only:
+
+      config :libcluster,
+        topologies: [
+          gossip_example: [
+            strategy: #{__MODULE__},
+            config: [
+              port: 45892,
+              if_addr: "0.0.0.0",
+              multicast_addr: "255.255.255.255",
+              broadcast_only: true]]]
+
   Debug logging is deactivated by default for this clustering strategy, but it can be easily activated by configuring the application:
 
       use Mix.Config
