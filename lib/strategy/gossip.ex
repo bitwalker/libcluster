@@ -67,12 +67,23 @@ defmodule Cluster.Strategy.Gossip do
       |> Keyword.get(:if_addr, @default_addr)
       |> sanitize_ip()
 
+    broadcast_only? = Keyword.get(config, :broadcast_only, false)
     ttl = Keyword.get(config, :multicast_ttl, 1)
 
     multicast_addr =
       config
       |> Keyword.get(:multicast_addr, @default_multicast_addr)
       |> sanitize_ip()
+
+    multicast_opts =
+      unless broadcast_only? == true do
+        [
+          multicast_ttl: ttl,
+          multicast_loop: true
+        ]
+      else
+        []
+      end
 
     options =
       [
@@ -81,10 +92,8 @@ defmodule Cluster.Strategy.Gossip do
         ip: ip,
         reuseaddr: true,
         broadcast: true,
-        multicast_ttl: ttl,
-        multicast_loop: true,
         add_membership: {multicast_addr, {0, 0, 0, 0}}
-      ] ++ reuse_port()
+      ] ++ multicast_opts ++ reuse_port()
 
     {:ok, socket} = :gen_udp.open(port, options)
 
