@@ -19,64 +19,74 @@ defmodule Cluster.Strategy.Kubernetes do
   longname, `<basename>@<domain>`, `basename` would be the value configured in
   `kubernetes_node_basename`.
 
-  `domain` would be the value configured in `mode` and can be either of type `:ip`
-  (the pod's ip, can be obtained by setting an env variable to status.podIP), `:hostname`
-  or `:dns`, which is the pod's internal A Record. This A Record has the format
-  `<ip-with-dashes>.<namespace>.pod.cluster.local`, e.g
-  1-2-3-4.default.pod.cluster.local.
+  `domain` would be the value configured in `mode` and can be of type
+  - `:ip`, the pod's IP address which can be obtained by setting an env variable to `status.podIP`
+  - `:hostname`
+  - `:dns`, which is the pod's internal A Record.
+
+  This A Record has the format `<ip-with-dashes>.<namespace>.pod.cluster.local`.  
+  E.g `1-2-3-4.default.pod.cluster.local`.
 
   Getting `:dns` to work requires setting the `POD_A_RECORD` environment variable before
   the application starts. If you use Distillery you can set it in your `pre_configure` hook:
 
-    # deployment.yaml
-    command: ["sh", "-c"]
-    args: ["POD_A_RECORD"]
-    args: ["export POD_A_RECORD=$(echo $POD_IP | sed 's/\./-/g') && /app/bin/app foreground"]
+  ```yaml
+  # deployment.yaml
+  command: ["sh", "-c"]
+  args: ["POD_A_RECORD"]
+  args: ["export POD_A_RECORD=$(echo $POD_IP | sed 's/\./-/g') && /app/bin/app foreground"]
+  ```
 
-    # vm.args
-    -name app@<%= "${POD_A_RECORD}.${NAMESPACE}.pod.cluster.local" %>
+  ```eex
+  # vm.args
+  -name app@<%= "${POD_A_RECORD}.${NAMESPACE}.pod.cluster.local" %>
+  ```
 
   To set the `NAMESPACE` and `POD_ID` environment variables you can configure your pod as follows:
 
-    # deployment.yaml
-    env:
-    - name: NAMESPACE
-      valueFrom:
-        fieldRef:
-          fieldPath: metadata.namespace
-    - name: POD_IP
-      valueFrom:
-        fieldRef:
-          fieldPath: status.podIP
+  ```yaml
+  # deployment.yaml
+  env:
+  - name: NAMESPACE
+    valueFrom:
+      fieldRef:
+        fieldPath: metadata.namespace
+  - name: POD_IP
+    valueFrom:
+      fieldRef:
+        fieldPath: status.podIP
+  ```
 
   The benefit of using `:dns` over `:ip` is that you can establish a remote shell (as well as
   run observer) by using `kubectl port-forward` in combination with some entries in `/etc/hosts`.
 
   Using `:hostname` is useful when deploying your app to K8S as a stateful set.  In this case you can
   set your erlang name as the fully qualified domain name of the pod which would be something similar to
-  `my-app-0.my-service-name.my-namespace.svc.cluster.local`.
-  e.g.
-  ```
+  `my-app-0.my-service-name.my-namespace.svc.cluster.local`. E.g.
+
+  ```eex
   # vm.args
   -name app@<%=`(hostname -f)`%>
   ```
+
   In this case you must also set `kubernetes_service_name` to the name of the K8S service that is being queried.
 
-  `mode' defaults to `:ip`.
+  Note the `mode` option defaults to `:ip`.
 
-  An example configuration is below:
+  An example topology configuration is:
 
-      config :libcluster,
-        topologies: [
-          k8s_example: [
-            strategy: #{__MODULE__},
-            config: [
-              mode: :ip,
-              kubernetes_node_basename: "myapp",
-              kubernetes_selector: "app=myapp",
-              kubernetes_namespace: "my_namespace",
-              polling_interval: 10_000]]]
-
+  ```yaml
+  config :libcluster,
+    topologies: [
+      k8s_example: [
+        strategy: #{__MODULE__},
+        config: [
+          mode: :ip,
+          kubernetes_node_basename: "myapp",
+          kubernetes_selector: "app=myapp",
+          kubernetes_namespace: "my_namespace",
+          polling_interval: 10_000]]]
+  ```
   """
   use GenServer
   use Cluster.Strategy
