@@ -17,7 +17,7 @@ defmodule Cluster.Strategy.Gossip do
   This can also be used to run multiple clusters with the same multicast configuration,
   as nodes not sharing the same encryption key will not be connected.
 
-  You may configure the multicast address, the interface address to bind to, the port,
+  You may configure the multicast interface, multicast address, the interface address to bind to, the port,
   the TTL of the packets and the optional secret using the following settings:
 
       config :libcluster,
@@ -27,6 +27,7 @@ defmodule Cluster.Strategy.Gossip do
             config: [
               port: 45892,
               if_addr: "0.0.0.0",
+              multicast_if: "192.168.1.1",
               multicast_addr: "230.1.1.251",
               multicast_ttl: 1,
               secret: "somepassword"]]]
@@ -50,6 +51,7 @@ defmodule Cluster.Strategy.Gossip do
 
   @default_port 45892
   @default_addr {0, 0, 0, 0}
+  @default_multicast_if {0, 0, 0, 0}
   @default_multicast_addr {230, 1, 1, 251}
   @sol_socket 0xFFFF
   @so_reuseport 0x0200
@@ -69,6 +71,11 @@ defmodule Cluster.Strategy.Gossip do
 
     ttl = Keyword.get(config, :multicast_ttl, 1)
 
+    multicast_if =
+      config
+      |> Keyword.get(:multicast_if, @default_multicast_if)
+      |> sanitize_ip()
+
     multicast_addr =
       config
       |> Keyword.get(:multicast_addr, @default_multicast_addr)
@@ -81,6 +88,7 @@ defmodule Cluster.Strategy.Gossip do
         ip: ip,
         reuseaddr: true,
         broadcast: true,
+        multicast_if: multicast_if,
         multicast_ttl: ttl,
         multicast_loop: true,
         add_membership: {multicast_addr, {0, 0, 0, 0}}
