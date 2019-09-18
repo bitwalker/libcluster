@@ -28,26 +28,26 @@ defmodule Cluster.Strategy.Kubernetes do
   Getting `:dns` to work requires setting the `POD_A_RECORD` environment variable before
   the application starts. If you use Distillery you can set it in your `pre_configure` hook:
 
-    # deployment.yaml
-    command: ["sh", "-c"]
-    args: ["POD_A_RECORD"]
-    args: ["export POD_A_RECORD=$(echo $POD_IP | sed 's/\./-/g') && /app/bin/app foreground"]
+      # deployment.yaml
+      command: ["sh", "-c"]
+      args: ["POD_A_RECORD"]
+      args: ["export POD_A_RECORD=$(echo $POD_IP | sed 's/\./-/g') && /app/bin/app foreground"]
 
-    # vm.args
-    -name app@<%= "${POD_A_RECORD}.${NAMESPACE}.pod.cluster.local" %>
+      # vm.args
+      -name app@<%= "${POD_A_RECORD}.${NAMESPACE}.pod.cluster.local" %>
 
   To set the `NAMESPACE` and `POD_ID` environment variables you can configure your pod as follows:
 
-    # deployment.yaml
-    env:
-    - name: NAMESPACE
-      valueFrom:
-        fieldRef:
-          fieldPath: metadata.namespace
-    - name: POD_IP
-      valueFrom:
-        fieldRef:
-          fieldPath: status.podIP
+      # deployment.yaml
+      env:
+      - name: NAMESPACE
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.namespace
+      - name: POD_IP
+        valueFrom:
+          fieldRef:
+            fieldPath: status.podIP
 
   The benefit of using `:dns` over `:ip` is that you can establish a remote shell (as well as
   run observer) by using `kubectl port-forward` in combination with some entries in `/etc/hosts`.
@@ -56,10 +56,10 @@ defmodule Cluster.Strategy.Kubernetes do
   set your erlang name as the fully qualified domain name of the pod which would be something similar to
   `my-app-0.my-service-name.my-namespace.svc.cluster.local`.
   e.g.
-  ```
-  # vm.args
-  -name app@<%=`(hostname -f)`%>
-  ```
+
+      # vm.args
+      -name app@<%=`(hostname -f)`%>
+
   In this case you must also set `kubernetes_service_name` to the name of the K8S service that is being queried.
 
   `mode' defaults to `:ip`.

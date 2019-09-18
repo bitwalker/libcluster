@@ -37,6 +37,7 @@ defmodule Cluster.Strategy.ErlangHosts do
   worker is started. Any integer timeout will result in the connection process
   being triggered. In the example above, it has been configured for 30 seconds.
   """
+  use GenServer
   use Cluster.Strategy
 
   alias Cluster.Strategy.State
@@ -53,11 +54,13 @@ defmodule Cluster.Strategy.ErlangHosts do
     end
   end
 
+  @impl true
   def init([state]) do
     new_state = connect_hosts(state)
     {:ok, new_state, configured_timeout(new_state)}
   end
 
+  @impl true
   def handle_info(:timeout, state) do
     handle_info(:connect, state)
   end

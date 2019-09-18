@@ -1,9 +1,12 @@
 defmodule Cluster.Mixfile do
   use Mix.Project
 
+  @version "3.1.1"
+  @source_url "https://github.com/bitwalker/libcluster"
+
   def project do
     [app: :libcluster,
-     version: "3.1.1",
+     version: @version,
      elixir: "~> 1.5",
      build_embedded: Mix.env == :prod,
      start_permanent: Mix.env == :prod,
@@ -39,11 +42,13 @@ defmodule Cluster.Mixfile do
     [files: ["lib", "mix.exs", "README.md", "LICENSE.md"],
      maintainers: ["Paul Schoenfelder"],
      licenses: ["MIT"],
-     links: %{ "GitHub": "https://github.com/bitwalker/libcluster" }]
+     links: %{"GitHub": @source_url}]
   end
 
   defp docs do
     [main: "readme",
+     source_url: @source_url,
+     source_ref: "v#{@version}",
      formatter_opts: [gfm: true],
      extras: [
        "README.md"
