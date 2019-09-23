@@ -90,7 +90,12 @@ defmodule Cluster.Strategy.Gossip do
 
     secret = Keyword.get(config, :secret, nil)
     state = %State{state | :meta => {multicast_addr, port, socket, secret}}
-    {:ok, state, 0}
+
+    if :erlang.system_info(:otp_release) >= '21' do
+      {:ok, state, {:continue, nil}}
+    else
+      {:ok, state, 0}
+    end
   end
 
   defp reuse_port() do
@@ -121,8 +126,13 @@ defmodule Cluster.Strategy.Gossip do
   end
 
   # Send stuttered heartbeats
-  @impl true
-  def handle_info(:timeout, state), do: handle_info(:heartbeat, state)
+  if :erlang.system_info(:otp_release) >= '21' do
+    @impl true
+    def handle_continue(_, state), do: handle_info(:heartbeat, state)
+  else
+    @impl true
+    def handle_info(:timeout, state), do: handle_info(:heartbeat, state)
+  end
 
   def handle_info(:heartbeat, %State{meta: {multicast_addr, port, socket, _}} = state) do
     debug(state.topology, "heartbeat")
