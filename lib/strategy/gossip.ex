@@ -173,6 +173,7 @@ defmodule Cluster.Strategy.Gossip do
     def handle_info(:timeout, state), do: handle_info(:heartbeat, state)
   end
 
+  @impl true
   def handle_info(:heartbeat, %State{meta: {multicast_addr, port, socket, _}} = state) do
     debug(state.topology, "heartbeat")
     :gen_udp.send(socket, multicast_addr, port, heartbeat(node(), state))
