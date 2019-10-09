@@ -197,7 +197,8 @@ defmodule Cluster.Strategy.Gossip do
     {:noreply, state}
   end
 
-  def terminate(_type, _reason, %State{meta: {_, _, socket, _}}) do
+  @impl true
+  def terminate(_reason, %State{meta: {_, _, socket, _}}) do
     :gen_udp.close(socket)
     :ok
   end
