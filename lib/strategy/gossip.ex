@@ -91,6 +91,7 @@ defmodule Cluster.Strategy.Gossip do
     secret = Keyword.get(config, :secret, nil)
     state = %State{state | :meta => {multicast_addr, port, socket, secret}}
 
+    # TODO: Remove this version check when we deprecate OTP < 21 support
     if :erlang.system_info(:otp_release) >= '21' do
       {:ok, state, {:continue, nil}}
     else
@@ -126,6 +127,7 @@ defmodule Cluster.Strategy.Gossip do
   end
 
   # Send stuttered heartbeats
+  # TODO: Remove this version check when we deprecate OTP < 21 support
   if :erlang.system_info(:otp_release) >= '21' do
     @impl true
     def handle_continue(_, state), do: handle_info(:heartbeat, state)
