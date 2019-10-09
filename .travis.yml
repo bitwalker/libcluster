@@ -12,7 +12,7 @@ otp_release:
 
 matrix:
   exclude:
-  - otp_release: 22.0
+  - otp_release: 22.1
     elixir: 1.6
 
 script:
