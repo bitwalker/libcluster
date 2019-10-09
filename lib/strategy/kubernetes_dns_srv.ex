@@ -109,6 +109,7 @@ defmodule Cluster.Strategy.Kubernetes.DNSSRV do
 
   @default_polling_interval 5_000
 
+  @impl true
   def start_link(args), do: GenServer.start_link(__MODULE__, args)
 
   @impl true
