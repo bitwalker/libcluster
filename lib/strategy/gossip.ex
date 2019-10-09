@@ -87,6 +87,8 @@ defmodule Cluster.Strategy.Gossip do
     broadcast_only? = Keyword.get(config, :broadcast_only, false)
     ttl = Keyword.get(config, :multicast_ttl, 1)
 
+    multicast_if = Keyword.get(config, :multicast_if)
+    
     multicast_addr =
       config
       |> Keyword.get(:multicast_addr, @default_multicast_addr)
