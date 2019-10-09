@@ -92,13 +92,15 @@ defmodule Cluster.Strategy.Gossip do
       |> sanitize_ip()
 
     multicast_opts =
-      unless broadcast_only? == true do
-        [
-          multicast_ttl: ttl,
-          multicast_loop: true
-        ]
-      else
-        []
+      cond do
+        broadcast_only? ->
+          []
+        
+        :else ->
+          [
+            multicast_ttl: ttl,
+            multicast_loop: true
+          ]
       end
 
     options =
