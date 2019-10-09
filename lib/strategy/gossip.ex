@@ -34,6 +34,22 @@ defmodule Cluster.Strategy.Gossip do
 
   A TTL of 1 will limit packets to the local network, and is the default TTL.
 
+  Optionally, `broadcast_only: true` option can be set which disables multicast and
+  only uses broadcasting. This limits connectivity to local network but works on in
+  scenarios where multicast is not enabled. Use `multicast_addr` as the broadcast address.
+
+  Example for broadcast only:
+
+      config :libcluster,
+        topologies: [
+          gossip_example: [
+            strategy: #{__MODULE__},
+            config: [
+              port: 45892,
+              if_addr: "0.0.0.0",
+              multicast_addr: "255.255.255.255",
+              broadcast_only: true]]]
+
   Debug logging is deactivated by default for this clustering strategy, but it can be easily activated by configuring the application:
 
       use Mix.Config
@@ -51,7 +67,6 @@ defmodule Cluster.Strategy.Gossip do
 
   @default_port 45892
   @default_addr {0, 0, 0, 0}
-  @default_multicast_if {0, 0, 0, 0}
   @default_multicast_addr {230, 1, 1, 251}
   @sol_socket 0xFFFF
   @so_reuseport 0x0200
@@ -69,17 +84,32 @@ defmodule Cluster.Strategy.Gossip do
       |> Keyword.get(:if_addr, @default_addr)
       |> sanitize_ip()
 
+    broadcast_only? = Keyword.get(config, :broadcast_only, false)
     ttl = Keyword.get(config, :multicast_ttl, 1)
-
-    multicast_if =
-      config
-      |> Keyword.get(:multicast_if, @default_multicast_if)
-      |> sanitize_ip()
 
     multicast_addr =
       config
       |> Keyword.get(:multicast_addr, @default_multicast_addr)
       |> sanitize_ip()
+
+    multicast_opts =
+      cond do
+        broadcast_only? ->
+          []
+          
+        multicast_if != nil ->
+          [
+            multicast_if: sanitize_ip(multicast_if)
+            multicast_ttl: ttl,
+            multicast_loop: true
+          ]
+        
+        :else ->
+          [
+            multicast_ttl: ttl,
+            multicast_loop: true
+          ]
+      end
 
     options =
       [
@@ -88,11 +118,8 @@ defmodule Cluster.Strategy.Gossip do
         ip: ip,
         reuseaddr: true,
         broadcast: true,
-        multicast_if: multicast_if,
-        multicast_ttl: ttl,
-        multicast_loop: true,
         add_membership: {multicast_addr, {0, 0, 0, 0}}
-      ] ++ reuse_port()
+      ] ++ multicast_opts ++ reuse_port()
 
     {:ok, socket} = :gen_udp.open(port, options)
 

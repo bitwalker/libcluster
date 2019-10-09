@@ -32,6 +32,7 @@ defmodule Cluster.Strategy.DNSPoll do
 
   def start_link(args), do: GenServer.start_link(__MODULE__, args)
 
+  @impl true
   def init([%State{meta: nil} = state]) do
     init([%State{state | :meta => MapSet.new()}])
   end
@@ -40,6 +41,7 @@ defmodule Cluster.Strategy.DNSPoll do
     {:ok, do_poll(state)}
   end
 
+  @impl true
   def handle_info(:timeout, state), do: handle_info(:poll, state)
   def handle_info(:poll, state), do: {:noreply, do_poll(state)}
   def handle_info(_, state), do: {:noreply, state}
