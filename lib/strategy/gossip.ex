@@ -101,7 +101,7 @@ defmodule Cluster.Strategy.Gossip do
           
         multicast_if != nil ->
           [
-            multicast_if: sanitize_ip(multicast_if)
+            multicast_if: sanitize_ip(multicast_if),
             multicast_ttl: ttl,
             multicast_loop: true
           ]
