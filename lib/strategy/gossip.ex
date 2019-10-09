@@ -88,7 +88,7 @@ defmodule Cluster.Strategy.Gossip do
     ttl = Keyword.get(config, :multicast_ttl, 1)
 
     multicast_if = Keyword.get(config, :multicast_if)
-    
+
     multicast_addr =
       config
       |> Keyword.get(:multicast_addr, @default_multicast_addr)
@@ -98,14 +98,14 @@ defmodule Cluster.Strategy.Gossip do
       cond do
         broadcast_only? ->
           []
-          
+
         multicast_if != nil ->
           [
             multicast_if: sanitize_ip(multicast_if),
             multicast_ttl: ttl,
             multicast_loop: true
           ]
-        
+
         :else ->
           [
             multicast_ttl: ttl,
