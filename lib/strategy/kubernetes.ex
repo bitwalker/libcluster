@@ -22,8 +22,8 @@ defmodule Cluster.Strategy.Kubernetes do
   `domain` would be the value configured in `mode` and can be either of type `:ip`
   (the pod's ip, can be obtained by setting an env variable to status.podIP), `:hostname`
   or `:dns`, which is the pod's internal A Record. This A Record has the format
-  `<ip-with-dashes>.<namespace>.pod.cluster.local`, e.g
-  1-2-3-4.default.pod.cluster.local.
+  `<ip-with-dashes>.<namespace>.pod.cluster.local`, e.g.
+  `1-2-3-4.default.pod.cluster.local`.
 
   Getting `:dns` to work requires setting the `POD_A_RECORD` environment variable before
   the application starts. If you use Distillery you can set it in your `pre_configure` hook:
