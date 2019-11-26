@@ -18,6 +18,7 @@ defmodule Cluster.Strategy.Kubernetes.DNSSRV do
           k8s_example: [
             strategy: #{__MODULE__},
             config: [
+              namespace: "elixir-plug-poc",
               service: "elixir-plug-poc",
               application_name: "elixir_plug_poc",
               polling_interval: 10_000]]]
