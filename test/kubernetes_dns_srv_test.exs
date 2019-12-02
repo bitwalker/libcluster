@@ -4,7 +4,7 @@ defmodule Cluster.Strategy.KubernetesSRVDNSTest do
   use ExUnit.Case, async: true
   import ExUnit.CaptureLog
 
-  alias Cluster.Strategy.Kubernetes.DNSSRV
+  alias Cluster.Strategy.Kubernetes.DNS, as: DNSSRV
   alias Cluster.Strategy.State
   alias Cluster.Nodes
 
@@ -21,6 +21,7 @@ defmodule Cluster.Strategy.KubernetesSRVDNSTest do
               service: "elixir-plug-poc",
               namespace: "default",
               application_name: "node",
+              method: :srv,
               resolver: fn _query ->
                 {:ok,
                  {:hostent, 'elixir-plug-poc.default.svc.cluster.local', [], :srv, 2,
@@ -57,6 +58,7 @@ defmodule Cluster.Strategy.KubernetesSRVDNSTest do
               service: "elixir-plug-poc",
               namespace: "default",
               application_name: "node",
+              method: :srv,
               resolver: fn _query ->
                 {:ok,
                  {:hostent, 'elixir-plug-poc.default.svc.cluster.local', [], :srv, 1,
@@ -100,20 +102,22 @@ defmodule Cluster.Strategy.KubernetesSRVDNSTest do
               service: "app",
               namespace: "default",
               application_name: "node",
+              method: :srv,
               resolver: fn _query ->
                 {:ok,
                  {:hostent, 'elixir-plug-poc.default.svc.cluster.local', [], :srv, 2,
                   [
                     {10, 50, 0, 'elixir-plug-poc-1.elixir-plug-poc.default.svc.cluster.local'}
                   ]}}
-
-
               end
             ],
             connect: {Nodes, :connect, [self()]},
             disconnect: {Nodes, :disconnect, [self()]},
-            list_nodes: {Nodes, :list_nodes, [[:"node@elixir-plug-poc-1.elixir-plug-poc.default.svc.cluster.local"]]},
-            meta: MapSet.new([:"node@elixir-plug-poc-1.elixir-plug-poc.default.svc.cluster.local"])
+            list_nodes:
+              {Nodes, :list_nodes,
+               [[:"node@elixir-plug-poc-1.elixir-plug-poc.default.svc.cluster.local"]]},
+            meta:
+              MapSet.new([:"node@elixir-plug-poc-1.elixir-plug-poc.default.svc.cluster.local"])
           }
         ]
         |> DNSSRV.start_link()
@@ -133,6 +137,7 @@ defmodule Cluster.Strategy.KubernetesSRVDNSTest do
               service: "app",
               namespace: "default",
               application_name: "node",
+              method: :srv,
               resolver: fn _query -> {:error, :nxdomain} end
             ],
             connect: {Nodes, :connect, [self()]},
