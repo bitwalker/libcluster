@@ -55,7 +55,12 @@ defmodule Cluster.Strategy.Rancher do
   end
 
   def init([%State{} = state]) do
-    {:ok, load(state)}
+    {:ok, state, {:continue, :load}}
+  end
+
+  @impl true
+  def handle_continue(:load, state) do
+    {:noreply, load(state)}
   end
 
   @impl true

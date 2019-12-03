@@ -38,7 +38,12 @@ defmodule Cluster.Strategy.DNSPoll do
   end
 
   def init([%State{} = state]) do
-    {:ok, do_poll(state)}
+    {:ok, state, {:continue, :poll}}
+  end
+
+  @impl true
+  def handle_continue(:poll, state) do
+    {:noreply, do_poll(state)}
   end
 
   @impl true

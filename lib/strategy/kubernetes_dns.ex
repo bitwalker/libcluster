@@ -40,7 +40,12 @@ defmodule Cluster.Strategy.Kubernetes.DNS do
   end
 
   def init([%State{} = state]) do
-    {:ok, load(state), 0}
+    {:ok, state, {:continue, :load}}
+  end
+
+  @impl true
+  def handle_continue(:load, state) do
+    {:noreply, load(state), 0}
   end
 
   @impl true
