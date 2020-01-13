@@ -62,7 +62,7 @@ defmodule Cluster.Strategy.Kubernetes do
 
   In this case you must also set `kubernetes_service_name` to the name of the K8S service that is being queried.
 
-  `mode' defaults to `:ip`.
+  `mode` defaults to `:ip`.
 
   An example configuration is below:
 
