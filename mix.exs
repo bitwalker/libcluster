@@ -1,7 +1,7 @@
 defmodule Cluster.Mixfile do
   use Mix.Project
 
-  @version "3.2.0"
+  @version "3.2.1"
   @source_url "https://github.com/bitwalker/libcluster"
 
   def project do
@@ -35,7 +35,7 @@ defmodule Cluster.Mixfile do
     [{:ex_doc, "~> 0.20.0", only: :dev},
      {:dialyxir, "~> 0.5.1", only: :dev},
      {:exvcr, "~> 0.10.3", only: :test},
-     {:jason, "~> 1.1.2"}]
+     {:jason, "~> 1.1"}]
   end
 
   defp package do
