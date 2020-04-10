@@ -54,9 +54,14 @@ defmodule Cluster.Strategy.DNSPoll do
            list_nodes: list_nodes
          } = state
        ) do
+
+    nodes = Node.list() |> MapSet.new
     new_nodelist = state |> get_nodes() |> MapSet.new()
-    added = MapSet.difference(new_nodelist, state.meta)
-    removed = MapSet.difference(state.meta, new_nodelist)
+    removed = state.meta |> MapSet.difference(new_nodelist)
+
+    # Nodes still mentioned in dns which we used to be connected to
+    disconnected_nodes = state.meta |> MapSet.difference(nodes) |> MapSet.difference(removed)
+    added = new_nodelist |> MapSet.difference(state.meta) |> MapSet.union(disconnected_nodes)
 
     new_nodelist =
       case Strategy.disconnect_nodes(
