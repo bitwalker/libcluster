@@ -54,12 +54,10 @@ defmodule Cluster.Strategy.DNSPoll do
            list_nodes: list_nodes
          } = state
        ) do
-    current_node = Node.self()
     {list_mod, list_fun, list_args} = list_nodes
 
     nodes =
       apply(list_mod, list_fun, list_args)
-      |> Enum.reject(fn n -> current_node == n end)
       |> MapSet.new()
 
     new_nodelist = state |> get_nodes() |> MapSet.new()
