@@ -61,7 +61,7 @@ defmodule Cluster.Strategy.DNSPoll do
       |> MapSet.new()
 
     new_nodelist = state |> get_nodes() |> MapSet.new()
-    removed = state.meta |> MapSet.difference(new_nodelist)
+    removed = MapSet.difference(state.meta, new_nodelist)
 
     # Nodes still mentioned in dns which we used to be connected to
     disconnected_nodes = state.meta |> MapSet.difference(nodes) |> MapSet.difference(removed)
