@@ -102,9 +102,12 @@ each strategy is kept up to date with the module implementing it.
 
 ## Clustering
 
-You have a handful of choices with regards to cluster management out of the box: 
+You have a handful of choices with regards to cluster management out of the box:
 
-- `Cluster.Strategy.Epmd`, which relies on `epmd` to connect to a configured set of hosts.
+- `Cluster.Strategy.Epmd`, which relies on `epmd` to connect to a configured set
+  of hosts.
+- `Cluster.Strategy.LocalEpmd`, which relies on `epmd` to connect to discovered
+  nodes on the local host.
 - `Cluster.Strategy.ErlangHosts`, which uses the `.hosts.erlang` file to
   determine which hosts to connect to.
 - `Cluster.Strategy.Gossip`, which uses multicast UDP to form a cluster between

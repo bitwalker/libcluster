@@ -3,6 +3,7 @@
 ### Added
 
 - Clustering strategy for the Rancher container platform (see: https://github.com/rancher/rancher)
+- LocalEpmd strategy that uses epmd to discover nodes on the local host
 
 ## 2.0.0
 
