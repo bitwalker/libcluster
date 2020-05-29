@@ -24,7 +24,7 @@ defmodule Cluster.Strategy.Kubernetes.DNS do
               service: "myapp-headless",
               application_name: "myapp",
               polling_interval: 10_000,  # optional
-              node_naming: &my_node_naming/2  # optional
+              node_naming: [MyModule, :my_node_naming, [extra_arg]]  # optional
             ]
           ]
         ]
@@ -47,6 +47,14 @@ defmodule Cluster.Strategy.Kubernetes.DNS do
   Of course, to use a custom naming schema, please make sure to change the
   BEAM arguments accordingly on the release configuration
   (See `Cluster.Strategy.Kubernetes` for an example).
+
+  Please notice that when using configuration files the `node_naming` option is
+  better given as `[module(), function_name :: atom(), extra_args :: [any()]]`,
+  since this kind of file is compiled into plain Erlang terms and therefore
+  don't support anonymous functions. In the case a list is provided, it will be
+  invoked via `Kernel.apply/3`, and the `extra_args` will be appended to the
+  application name and IP. Two-argument anonymous functions can be used
+  normally when passing options inline, directly to the supervisor.
   """
   use GenServer
   use Cluster.Strategy
@@ -175,6 +183,13 @@ defmodule Cluster.Strategy.Kubernetes.DNS do
   @spec default_node_naming(String.t(), String.t()) :: node()
   def default_node_naming(app_name, ip) do
     :"#{app_name}@#{ip}"
+  end
+
+  defp parse_response(addresses, app_name, [module, function, extra_args])
+       when is_atom(module)
+       when is_atom(function)
+       when is_list(extra_args) do
+    parse_response(addresses, app_name, &apply(module, function, [&1, &2 | extra_args]))
   end
 
   defp parse_response(addresses, app_name, node_naming) do
