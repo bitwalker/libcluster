@@ -94,5 +94,33 @@ defmodule Cluster.Strategy.KubernetesDNSTest do
         refute_receive {:connect, _}, 100
       end)
     end
+
+    test "accepts custom naming" do
+      node_naming = fn app_name, ip ->
+        :"#{app_name}@#{String.replace(ip, ".", "-")}.default.pod.cluster.local"
+      end
+
+      capture_log(fn ->
+        [%State{
+          topology: :k8s_dns_example,
+          config: [
+            polling_interval: 100,
+            service: "app",
+            application_name: "node",
+            node_naming: node_naming,
+            resolver: fn _query ->
+              {:ok, {:hostent, 'app', [], :inet, 4, [{10, 0, 0, 1}, {10, 0, 0, 2}]}}
+            end
+          ],
+          connect: {Nodes, :connect, [self()]},
+          disconnect: {Nodes, :disconnect, [self()]},
+          list_nodes: {Nodes, :list_nodes, [[]]}
+        }]
+        |> DNS.start_link()
+
+        assert_receive {:connect, :"node@10-0-0-1.default.pod.cluster.local"}, 100
+        assert_receive {:connect, :"node@10-0-0-2.default.pod.cluster.local"}, 100
+      end)
+    end
   end
 end
