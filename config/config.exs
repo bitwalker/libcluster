@@ -11,7 +11,7 @@ config :libcluster,
       config: [],
       # The function to use for connecting nodes. The node
       # name will be appended to the argument list. Optional
-      connect: {:net_kernel, :connect, []},
+      connect: {:net_kernel, :connect_node, []},
       # The function to use for disconnecting nodes. The node
       # name will be appended to the argument list. Optional
       disconnect: {:net_kernel, :disconnect, []},
