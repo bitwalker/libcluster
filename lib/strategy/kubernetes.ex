@@ -85,7 +85,7 @@ defmodule Cluster.Strategy.Kubernetes do
   alias Cluster.Strategy.State
 
   @default_polling_interval 5_000
-  @kubernetes_master "kubernetes.default.svc.cluster.local"
+  @kubernetes_master "kubernetes.default.svc."
   @service_account_path "/var/run/secrets/kubernetes.io/serviceaccount"
 
   def start_link(args), do: GenServer.start_link(__MODULE__, args)
@@ -207,7 +207,7 @@ defmodule Cluster.Strategy.Kubernetes do
     service_name = Keyword.get(config, :kubernetes_service_name)
     selector = Keyword.fetch!(config, :kubernetes_selector)
     ip_lookup_mode = Keyword.get(config, :kubernetes_ip_lookup_mode, :endpoints)
-    master = Keyword.get(config, :kubernetes_master, @kubernetes_master)
+    master = Keyword.get(config, :kubernetes_master, @kubernetes_master) <> System.get_env("CLUSTER_DOMAIN", "cluster.local.")
 
     cond do
       app_name != nil and selector != nil ->
