@@ -305,9 +305,10 @@ defmodule Cluster.Strategy.Kubernetes do
         Enum.map(items, fn
           %{
             "status" => %{"podIP" => ip},
-            "metadata" => %{"namespace" => ns}
+            "metadata" => %{"namespace" => ns},
+            "spec" => pod_spec
           } ->
-            %{ip: ip, namespace: ns}
+            %{ip: ip, namespace: ns, hostname: pod_spec["hostname"]}
 
           _ ->
             nil
