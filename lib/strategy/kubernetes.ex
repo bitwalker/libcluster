@@ -112,16 +112,8 @@ defmodule Cluster.Strategy.Kubernetes do
     {:noreply, state}
   end
 
-  defp load(%State{topology: topology, meta: meta} = state) do
+  defp load(%State{topology: topology} = state) do
     new_nodelist = MapSet.new(get_nodes(state))
-    nodes = Node.list()
-
-    added =
-      MapSet.union(
-        MapSet.difference(new_nodelist, meta),
-        MapSet.new(Enum.filter(new_nodelist, &(&1 not in nodes)))
-      )
-
     removed = MapSet.difference(state.meta, new_nodelist)
 
     new_nodelist =
@@ -146,7 +138,7 @@ defmodule Cluster.Strategy.Kubernetes do
              topology,
              state.connect,
              state.list_nodes,
-             MapSet.to_list(added)
+             MapSet.to_list(new_nodelist)
            ) do
         :ok ->
           new_nodelist
@@ -160,7 +152,7 @@ defmodule Cluster.Strategy.Kubernetes do
 
     Process.send_after(self(), :load, polling_interval(state))
 
-    %State{state | :meta => new_nodelist}
+    %State{state | meta: new_nodelist}
   end
 
   defp polling_interval(%State{config: config}) do
