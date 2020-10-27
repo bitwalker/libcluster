@@ -80,7 +80,6 @@ defmodule Cluster.Strategy.Rancher do
          } = state
        ) do
     new_nodelist = MapSet.new(get_nodes(state))
-    added = MapSet.difference(new_nodelist, state.meta)
     removed = MapSet.difference(state.meta, new_nodelist)
 
     new_nodelist =
@@ -101,7 +100,12 @@ defmodule Cluster.Strategy.Rancher do
       end
 
     new_nodelist =
-      case Cluster.Strategy.connect_nodes(topology, connect, list_nodes, MapSet.to_list(added)) do
+      case Cluster.Strategy.connect_nodes(
+             topology,
+             connect,
+             list_nodes,
+             MapSet.to_list(new_nodelist)
+           ) do
         :ok ->
           new_nodelist
 
