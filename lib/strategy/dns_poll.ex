@@ -55,7 +55,6 @@ defmodule Cluster.Strategy.DNSPoll do
          } = state
        ) do
     new_nodelist = state |> get_nodes() |> MapSet.new()
-    added = MapSet.difference(new_nodelist, state.meta)
     removed = MapSet.difference(state.meta, new_nodelist)
 
     new_nodelist =
@@ -80,7 +79,7 @@ defmodule Cluster.Strategy.DNSPoll do
              topology,
              connect,
              list_nodes,
-             MapSet.to_list(added)
+             MapSet.to_list(new_nodelist)
            ) do
         :ok ->
           new_nodelist
