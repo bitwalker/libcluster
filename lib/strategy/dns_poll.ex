@@ -152,10 +152,10 @@ defmodule Cluster.Strategy.DNSPoll do
   end
 
   def lookup_all_ips(q) do
-    Enum.map([:a, :aaaa], fn t -> :inet_res.lookup(q, :in, t) end) |> List.flatten
+    Enum.flat_map([:a, :aaaa], fn t -> :inet_res.lookup(q, :in, t) end)
   end
 
   # turn an ip into a node name atom, assuming that all other node names looks similar to our own name
-  defp format_node(ip, base_name), do: :"#{base_name}@#{ip |> :inet_parse.ntoa |> to_string()}"
+  defp format_node(ip, base_name), do: :"#{base_name}@#{:inet_parse.ntoa(ip)}"
 
 end
