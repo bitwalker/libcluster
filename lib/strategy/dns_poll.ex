@@ -101,7 +101,7 @@ defmodule Cluster.Strategy.DNSPoll do
     Keyword.get(config, :polling_interval, @default_polling_interval)
   end
 
-  defp get_nodes(%State{config: config} = state) do
+  defp get_nodes(%State{topology: topology, config: config} = state) do
     query = Keyword.fetch(config, :query)
     node_basename = Keyword.fetch(config, :node_basename)
 
@@ -113,6 +113,7 @@ defmodule Cluster.Strategy.DNSPoll do
       end)
 
     resolve(query, node_basename, resolver, state)
+    |> debug_inspect(topology, label: "node names", verbose: 2)
   end
 
   # query for all ips responding to a given dns query

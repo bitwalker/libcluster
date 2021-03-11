@@ -208,6 +208,7 @@ defmodule Cluster.Strategy.Kubernetes do
     selector = Keyword.fetch!(config, :kubernetes_selector)
     ip_lookup_mode = Keyword.get(config, :kubernetes_ip_lookup_mode, :endpoints)
     master = Keyword.get(config, :kubernetes_master, @kubernetes_master)
+    mode = Keyword.get(config, :mode, :ip)
 
     cond do
       app_name != nil and selector != nil ->
@@ -224,16 +225,13 @@ defmodule Cluster.Strategy.Kubernetes do
 
         case :httpc.request(:get, {'https://#{master}/#{path}', headers}, http_options, []) do
           {:ok, {{_version, 200, _status}, _headers, body}} ->
-            parse_response(ip_lookup_mode, Jason.decode!(body))
-            |> Enum.map(fn node_info ->
-              format_node(
-                Keyword.get(config, :mode, :ip),
-                node_info,
-                app_name,
-                cluster_name,
-                service_name
-              )
-            end)
+            body
+            |> Jason.decode!
+            |> debug_inspect(topology, label: "Kubernetes API", pretty: true, verbose: 5)
+            |> (&parse_response(ip_lookup_mode, &1)).()
+            |> debug_inspect(topology, label: "detected nodes", pretty: true, verbose: 3)
+            |> Enum.map(&format_node(mode, &1, app_name, cluster_name, service_name))
+            |> debug_inspect(topology, label: "node names", pretty: true, verbose: 2)
 
           {:ok, {{_version, 403, _status}, _headers, body}} ->
             %{"message" => msg} = Jason.decode!(body)

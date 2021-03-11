@@ -138,6 +138,21 @@ but are known to exist.
 - [libcluster_ec2](https://github.com/kyleaa/libcluster_ec2) - EC2 clustering strategy based on tags
 - [libcluster_consul](https://github.com/team-telnyx/libcluster_consul) - Consul clustering strategy
 
+## Debugging
+
+You can enable debugging messages from `libcluster` in your config files, by doing:
+
+```elixir
+config :libcluster, :debug, true
+```
+
+Alternatively, a numerical value can be also configured (e.g. `1` .. `5`).
+This numerical value represent the level of verbosity for the debugging logs.
+Level 1 is already very verbose, but things get worse the bigger this level is.
+Level 2 is usually used to log the names of the discovered nodes, while level 5
+will even log intermediate values used by the strategies (e.g. REST API
+responses for `Kubernetes`/`Rancher` strategies).
+
 ## License
 
 MIT

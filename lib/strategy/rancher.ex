@@ -135,7 +135,11 @@ defmodule Cluster.Strategy.Rancher do
                []
              ) do
           {:ok, {{_version, 200, _status}, _headers, body}} ->
-            parse_response(app_name, Jason.decode!(body))
+            body
+            |> Jason.decode!
+            |> debug_inspect(topology, label: "Rancher API", pretty: true, verbose: 5)
+            |> (&parse_response(app_name, &1)).()
+            |> debug_inspect(topology, label: "node names", verbose: 2)
 
           {:ok, {{_version, code, status}, _headers, body}} ->
             warn(

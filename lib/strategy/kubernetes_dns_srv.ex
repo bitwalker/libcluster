@@ -197,6 +197,7 @@ defmodule Cluster.Strategy.Kubernetes.DNSSRV do
         case resolver.(headless_service) do
           {:ok, {:hostent, _, _, :srv, _count, addresses}} ->
             parse_response(addresses, app_name)
+            |> debug_inspect(topology, label: "node names", verbose: 2)
 
           {:error, reason} ->
             error(
