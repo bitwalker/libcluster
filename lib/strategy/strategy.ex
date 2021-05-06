@@ -90,10 +90,7 @@ defmodule Cluster.Strategy do
     ensure_exported!(list_mod, list_fun, length(list_args))
     current_node = Node.self()
 
-    need_disconnect =
-      nodes
-      |> intersection(apply(list_mod, list_fun, list_args))
-      |> Enum.reject(fn n -> current_node == n end)
+    need_disconnect = Enum.reject(nodes, fn n -> current_node == n end)
 
     bad_nodes =
       Enum.reduce(need_disconnect, [], fn n, acc ->
