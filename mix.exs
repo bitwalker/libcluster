@@ -48,7 +48,7 @@ defmodule Cluster.Mixfile do
   defp docs do
     [main: "readme",
      source_url: @source_url,
-     source_ref: "v#{@version}",
+     source_ref: @version,
      formatter_opts: [gfm: true],
      extras: [
        "README.md"
