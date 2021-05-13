@@ -2,10 +2,8 @@
 [![Build Status](https://travis-ci.org/bitwalker/libcluster.svg?branch=master)](https://travis-ci.org/bitwalker/libcluster)
 
 This library provides a mechanism for automatically forming clusters of Erlang nodes, with
-either static or dynamic node membership. It provides a publish/subscribe mechanism for cluster
-events so that you can easily be notified when cluster members join or leave, and provides a
-pluggable "strategy" system, with a variety of strategies provided out of the
-box.
+either static or dynamic node membership. It provides a pluggable "strategy" system, with a variety of strategies
+provided out of the box.
 
 You can find supporting documentation [here](https://hexdocs.pm/libcluster).
 
