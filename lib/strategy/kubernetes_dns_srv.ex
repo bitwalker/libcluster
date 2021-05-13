@@ -186,7 +186,7 @@ defmodule Cluster.Strategy.Kubernetes.DNSSRV do
     app_name = Keyword.fetch!(config, :application_name)
     service = Keyword.fetch!(config, :service)
     namespace = Keyword.fetch!(config, :namespace)
-    service_k8s_path = "#{service}.#{namespace}.svc.cluster.local."
+    service_k8s_path = "#{service}.#{namespace}.svc.#{System.get_env("CLUSTER_DOMAIN", "cluster.local.")}"
     resolver = Keyword.get(config, :resolver, &:inet_res.getbyname(&1, :srv))
 
     cond do
