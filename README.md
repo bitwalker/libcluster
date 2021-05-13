@@ -1,6 +1,6 @@
 # libcluster
 
-[![Build Status](https://travis-ci.org/bitwalker/libcluster.svg?branch=master)](https://travis-ci.org/bitwalker/libcluster)
+[![Build Status](https://github.com/bitwalker/libcluster/workflows/elixir/badge.svg?branch=master)](https://github.com/bitwalker/libcluster/actions?query=workflow%3A%22elixir%22+branch%3Amaster)
 [![Module Version](https://img.shields.io/hexpm/v/libcluster.svg)](https://hex.pm/packages/libcluster)
 [![Hex Docs](https://img.shields.io/badge/hex-docs-lightgreen.svg)](https://hexdocs.pm/libcluster/)
 [![Total Download](https://img.shields.io/hexpm/dt/libcluster.svg)](https://hex.pm/packages/libcluster)
