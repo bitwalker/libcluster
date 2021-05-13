@@ -55,7 +55,6 @@ defmodule Cluster.Strategy.DNSPoll do
          } = state
        ) do
     new_nodelist = state |> get_nodes() |> MapSet.new()
-    added = MapSet.difference(new_nodelist, state.meta)
     removed = MapSet.difference(state.meta, new_nodelist)
 
     new_nodelist =
@@ -80,7 +79,7 @@ defmodule Cluster.Strategy.DNSPoll do
              topology,
              connect,
              list_nodes,
-             MapSet.to_list(added)
+             MapSet.to_list(new_nodelist)
            ) do
         :ok ->
           new_nodelist
@@ -109,7 +108,7 @@ defmodule Cluster.Strategy.DNSPoll do
       Keyword.get(config, :resolver, fn query ->
         query
         |> String.to_charlist()
-        |> :inet_res.lookup(:in, :a)
+        |> lookup_all_ips
       end)
 
     resolve(query, node_basename, resolver, state)
@@ -151,6 +150,11 @@ defmodule Cluster.Strategy.DNSPoll do
     []
   end
 
+  def lookup_all_ips(q) do
+    Enum.flat_map([:a, :aaaa], fn t -> :inet_res.lookup(q, :in, t) end)
+  end
+
   # turn an ip into a node name atom, assuming that all other node names looks similar to our own name
-  defp format_node({a, b, c, d}, base_name), do: :"#{base_name}@#{a}.#{b}.#{c}.#{d}"
+  defp format_node(ip, base_name), do: :"#{base_name}@#{:inet_parse.ntoa(ip)}"
+
 end

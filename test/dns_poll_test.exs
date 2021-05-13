@@ -16,7 +16,7 @@ defmodule Cluster.Strategy.DNSPollTest do
             polling_interval: 100,
             query: "app",
             node_basename: "node",
-            resolver: fn _query -> [{10, 0, 0, 1}, {10, 0, 0, 2}] end
+            resolver: fn _query -> [{10, 0, 0, 1}, {10, 0, 0, 2},{10761, 33408, 1, 41584, 47349, 47607, 34961, 243}] end
           ],
           connect: {Nodes, :connect, [self()]},
           disconnect: {Nodes, :disconnect, [self()]},
@@ -26,6 +26,7 @@ defmodule Cluster.Strategy.DNSPollTest do
 
         assert_receive {:connect, :"node@10.0.0.1"}, 100
         assert_receive {:connect, :"node@10.0.0.2"}, 100
+        assert_receive {:connect, :"node@2a09:8280:1:a270:b8f5:b9f7:8891:f3"}, 100
       end)
     end
   end
@@ -111,5 +112,11 @@ defmodule Cluster.Strategy.DNSPollTest do
       refute_receive {:disconnect, _}, 100
       refute_receive {:connect, _}, 100
     end)
+  end
+
+  test "looks up both A and AAAA records" do
+    result = DNSPoll.lookup_all_ips("example.org" |> String.to_charlist)
+    sizes = result |> Enum.map(fn ip -> tuple_size(ip) end) |> Enum.uniq |> Enum.sort
+    assert(sizes == [4,8])
   end
 end

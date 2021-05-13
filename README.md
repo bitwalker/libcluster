@@ -8,10 +8,8 @@
 [![Last Updated](https://img.shields.io/github/last-commit/bitwalker/libcluster.svg)](https://github.com/bitwalker/libcluster/commits/master)
 
 This library provides a mechanism for automatically forming clusters of Erlang nodes, with
-either static or dynamic node membership. It provides a publish/subscribe mechanism for cluster
-events so that you can easily be notified when cluster members join or leave, and provides a
-pluggable "strategy" system, with a variety of strategies provided out of the
-box.
+either static or dynamic node membership. It provides a pluggable "strategy" system, with a variety of strategies
+provided out of the box.
 
 You can find supporting documentation [here](https://hexdocs.pm/libcluster).
 
@@ -110,7 +108,10 @@ each strategy is kept up to date with the module implementing it.
 
 You have a handful of choices with regards to cluster management out of the box:
 
-- `Cluster.Strategy.Epmd`, which relies on `epmd` to connect to a configured set of hosts.
+- `Cluster.Strategy.Epmd`, which relies on `epmd` to connect to a configured set
+  of hosts.
+- `Cluster.Strategy.LocalEpmd`, which relies on `epmd` to connect to discovered
+  nodes on the local host.
 - `Cluster.Strategy.ErlangHosts`, which uses the `.hosts.erlang` file to
   determine which hosts to connect to.
 - `Cluster.Strategy.Gossip`, which uses multicast UDP to form a cluster between

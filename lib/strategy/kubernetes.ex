@@ -36,7 +36,7 @@ defmodule Cluster.Strategy.Kubernetes do
       # vm.args
       -name app@<%= "${POD_A_RECORD}.${NAMESPACE}.pod.cluster.local" %>
 
-  To set the `NAMESPACE` and `POD_ID` environment variables you can configure your pod as follows:
+  To set the `NAMESPACE` and `POD_IP` environment variables you can configure your pod as follows:
 
       # deployment.yaml
       env:
@@ -85,7 +85,7 @@ defmodule Cluster.Strategy.Kubernetes do
   alias Cluster.Strategy.State
 
   @default_polling_interval 5_000
-  @kubernetes_master "kubernetes.default.svc.cluster.local"
+  @kubernetes_master "kubernetes.default.svc."
   @service_account_path "/var/run/secrets/kubernetes.io/serviceaccount"
 
   def start_link(args), do: GenServer.start_link(__MODULE__, args)
@@ -112,16 +112,8 @@ defmodule Cluster.Strategy.Kubernetes do
     {:noreply, state}
   end
 
-  defp load(%State{topology: topology, meta: meta} = state) do
+  defp load(%State{topology: topology} = state) do
     new_nodelist = MapSet.new(get_nodes(state))
-    nodes = Node.list()
-
-    added =
-      MapSet.union(
-        MapSet.difference(new_nodelist, meta),
-        MapSet.new(Enum.filter(new_nodelist, &(&1 not in nodes)))
-      )
-
     removed = MapSet.difference(state.meta, new_nodelist)
 
     new_nodelist =
@@ -146,7 +138,7 @@ defmodule Cluster.Strategy.Kubernetes do
              topology,
              state.connect,
              state.list_nodes,
-             MapSet.to_list(added)
+             MapSet.to_list(new_nodelist)
            ) do
         :ok ->
           new_nodelist
@@ -160,7 +152,7 @@ defmodule Cluster.Strategy.Kubernetes do
 
     Process.send_after(self(), :load, polling_interval(state))
 
-    %State{state | :meta => new_nodelist}
+    %State{state | meta: new_nodelist}
   end
 
   defp polling_interval(%State{config: config}) do
@@ -207,7 +199,7 @@ defmodule Cluster.Strategy.Kubernetes do
     service_name = Keyword.get(config, :kubernetes_service_name)
     selector = Keyword.fetch!(config, :kubernetes_selector)
     ip_lookup_mode = Keyword.get(config, :kubernetes_ip_lookup_mode, :endpoints)
-    master = Keyword.get(config, :kubernetes_master, @kubernetes_master)
+    master = Keyword.get(config, :kubernetes_master, @kubernetes_master) <> System.get_env("CLUSTER_DOMAIN", "cluster.local.")
 
     cond do
       app_name != nil and selector != nil ->
@@ -305,9 +297,10 @@ defmodule Cluster.Strategy.Kubernetes do
         Enum.map(items, fn
           %{
             "status" => %{"podIP" => ip},
-            "metadata" => %{"namespace" => ns}
+            "metadata" => %{"namespace" => ns},
+            "spec" => pod_spec
           } ->
-            %{ip: ip, namespace: ns}
+            %{ip: ip, namespace: ns, hostname: pod_spec["hostname"]}
 
           _ ->
             nil

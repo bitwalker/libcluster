@@ -10,7 +10,7 @@ defmodule Cluster.Strategy.Gossip do
   name which sent the packet. The node name is parsed from the packet, and a
   connection attempt is made. It will fail if the two nodes do not share a cookie.
 
-  By default, the gossip occurs on port 45892, using the multicast address 230.1.1.251
+  By default, the gossip occurs on port 45892, using the multicast address 233.252.1.32
 
   The gossip protocol is not encrypted by default, but can be by providing a secret
   in the configuration of the strategy (as shown below).
@@ -28,7 +28,7 @@ defmodule Cluster.Strategy.Gossip do
               port: 45892,
               if_addr: "0.0.0.0",
               multicast_if: "192.168.1.1",
-              multicast_addr: "230.1.1.251",
+              multicast_addr: "233.252.1.32",
               multicast_ttl: 1,
               secret: "somepassword"]]]
 
@@ -67,7 +67,7 @@ defmodule Cluster.Strategy.Gossip do
 
   @default_port 45892
   @default_addr {0, 0, 0, 0}
-  @default_multicast_addr {230, 1, 1, 251}
+  @default_multicast_addr {233, 252, 1, 32}
   @sol_socket 0xFFFF
   @so_reuseport 0x0200
 
@@ -196,7 +196,7 @@ defmodule Cluster.Strategy.Gossip do
         %State{meta: {_, _, _, secret}} = state
       )
       when is_binary(secret) do
-    case decrypt(ciphertext, secret, iv) do
+    case decrypt(state, ciphertext, secret, iv) do
       {:ok, plaintext} ->
         handle_heartbeat(state, plaintext)
         {:noreply, state}
@@ -222,9 +222,9 @@ defmodule Cluster.Strategy.Gossip do
     ["heartbeat::", :erlang.term_to_binary(%{node: node_name})]
   end
 
-  defp heartbeat(node_name, %State{meta: {_, _, _, secret}}) when is_binary(secret) do
+  defp heartbeat(node_name, %State{meta: {_, _, _, secret}} = state) when is_binary(secret) do
     message = "heartbeat::" <> :erlang.term_to_binary(%{node: node_name})
-    {:ok, iv, msg} = encrypt(message, secret)
+    {:ok, iv, msg} = encrypt(state, message, secret)
 
     [iv, msg]
   end
@@ -258,18 +258,18 @@ defmodule Cluster.Strategy.Gossip do
     :ok
   end
 
-  defp encrypt(plaintext, password) do
+  defp encrypt(_state, plaintext, password) do
     iv = :crypto.strong_rand_bytes(16)
     key = :crypto.hash(:sha256, password)
-    ciphertext = :crypto.block_encrypt(:aes_cbc256, key, iv, pkcs7_pad(plaintext))
+    ciphertext = :crypto.crypto_one_time(:aes_cbc256, key, iv, pkcs7_pad(plaintext), true)
 
     {:ok, iv, ciphertext}
   end
 
-  defp decrypt(ciphertext, password, iv) do
+  defp decrypt(state, ciphertext, password, iv) do
     key = :crypto.hash(:sha256, password)
 
-    with {:unpadding, {:ok, padded}} <- {:unpadding, safe_decrypt(key, iv, ciphertext)},
+    with {:unpadding, {:ok, padded}} <- {:unpadding, safe_decrypt(state, key, iv, ciphertext)},
          {:decrypt, {:ok, _plaintext} = res} <- {:decrypt, pkcs7_unpad(padded)} do
       res
     else
@@ -278,11 +278,12 @@ defmodule Cluster.Strategy.Gossip do
     end
   end
 
-  defp safe_decrypt(key, iv, ciphertext) do
+  defp safe_decrypt(state, key, iv, ciphertext) do
     try do
-      {:ok, :crypto.block_decrypt(:aes_cbc256, key, iv, ciphertext)}
-    rescue
-      ArgumentError ->
+      {:ok, :crypto.crypto_one_time(:aes_cbc256, key, iv, ciphertext, false)}
+    catch
+      :error, {tag, {file, line}, desc} ->
+        warn(state.topology, "decryption failed: #{inspect tag} (#{file}:#{line}): #{desc}")
         :error
     end
   end
