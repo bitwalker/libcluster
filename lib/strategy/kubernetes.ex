@@ -199,7 +199,10 @@ defmodule Cluster.Strategy.Kubernetes do
     service_name = Keyword.get(config, :kubernetes_service_name)
     selector = Keyword.fetch!(config, :kubernetes_selector)
     ip_lookup_mode = Keyword.get(config, :kubernetes_ip_lookup_mode, :endpoints)
-    master = Keyword.get(config, :kubernetes_master, @kubernetes_master) <> System.get_env("CLUSTER_DOMAIN", "cluster.local.")
+
+    master =
+      Keyword.get(config, :kubernetes_master, @kubernetes_master) <>
+        System.get_env("CLUSTER_DOMAIN", "cluster.local.")
 
     cond do
       app_name != nil and selector != nil ->

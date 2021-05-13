@@ -156,5 +156,4 @@ defmodule Cluster.Strategy.DNSPoll do
 
   # turn an ip into a node name atom, assuming that all other node names looks similar to our own name
   defp format_node(ip, base_name), do: :"#{base_name}@#{:inet_parse.ntoa(ip)}"
-
 end

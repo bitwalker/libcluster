@@ -18,14 +18,16 @@ defmodule Cluster.AppTest do
 
   describe "start/2" do
     test "calls strategy with right arguments" do
-      Cluster.Supervisor.start_link([[
-        test: [
-          strategy: TestStrategy,
-          config: [
-            caller: self()
+      Cluster.Supervisor.start_link([
+        [
+          test: [
+            strategy: TestStrategy,
+            config: [
+              caller: self()
+            ]
           ]
         ]
-      ]])
+      ])
 
       assert_receive {:opts, state}
       assert :test == state.topology

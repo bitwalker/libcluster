@@ -283,7 +283,7 @@ defmodule Cluster.Strategy.Gossip do
       {:ok, :crypto.crypto_one_time(:aes_cbc256, key, iv, ciphertext, false)}
     catch
       :error, {tag, {file, line}, desc} ->
-        warn(state.topology, "decryption failed: #{inspect tag} (#{file}:#{line}): #{desc}")
+        warn(state.topology, "decryption failed: #{inspect(tag)} (#{file}:#{line}): #{desc}")
         :error
     end
   end
