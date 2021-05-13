@@ -10,7 +10,7 @@ defmodule Cluster.Strategy.Gossip do
   name which sent the packet. The node name is parsed from the packet, and a
   connection attempt is made. It will fail if the two nodes do not share a cookie.
 
-  By default, the gossip occurs on port 45892, using the multicast address 230.1.1.251
+  By default, the gossip occurs on port 45892, using the multicast address 233.252.1.32
 
   The gossip protocol is not encrypted by default, but can be by providing a secret
   in the configuration of the strategy (as shown below).
@@ -28,7 +28,7 @@ defmodule Cluster.Strategy.Gossip do
               port: 45892,
               if_addr: "0.0.0.0",
               multicast_if: "192.168.1.1",
-              multicast_addr: "230.1.1.251",
+              multicast_addr: "233.252.1.32",
               multicast_ttl: 1,
               secret: "somepassword"]]]
 
@@ -67,7 +67,7 @@ defmodule Cluster.Strategy.Gossip do
 
   @default_port 45892
   @default_addr {0, 0, 0, 0}
-  @default_multicast_addr {230, 1, 1, 251}
+  @default_multicast_addr {233, 252, 1, 32}
   @sol_socket 0xFFFF
   @so_reuseport 0x0200
 
