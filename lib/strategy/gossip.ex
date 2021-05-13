@@ -196,7 +196,7 @@ defmodule Cluster.Strategy.Gossip do
         %State{meta: {_, _, _, secret}} = state
       )
       when is_binary(secret) do
-    case decrypt(ciphertext, secret, iv) do
+    case decrypt(state, ciphertext, secret, iv) do
       {:ok, plaintext} ->
         handle_heartbeat(state, plaintext)
         {:noreply, state}
@@ -222,9 +222,9 @@ defmodule Cluster.Strategy.Gossip do
     ["heartbeat::", :erlang.term_to_binary(%{node: node_name})]
   end
 
-  defp heartbeat(node_name, %State{meta: {_, _, _, secret}}) when is_binary(secret) do
+  defp heartbeat(node_name, %State{meta: {_, _, _, secret}} = state) when is_binary(secret) do
     message = "heartbeat::" <> :erlang.term_to_binary(%{node: node_name})
-    {:ok, iv, msg} = encrypt(message, secret)
+    {:ok, iv, msg} = encrypt(state, message, secret)
 
     [iv, msg]
   end
@@ -258,18 +258,18 @@ defmodule Cluster.Strategy.Gossip do
     :ok
   end
 
-  defp encrypt(plaintext, password) do
+  defp encrypt(_state, plaintext, password) do
     iv = :crypto.strong_rand_bytes(16)
     key = :crypto.hash(:sha256, password)
-    ciphertext = :crypto.block_encrypt(:aes_cbc256, key, iv, pkcs7_pad(plaintext))
+    ciphertext = :crypto.crypto_one_time(:aes_cbc256, key, iv, pkcs7_pad(plaintext), true)
 
     {:ok, iv, ciphertext}
   end
 
-  defp decrypt(ciphertext, password, iv) do
+  defp decrypt(state, ciphertext, password, iv) do
     key = :crypto.hash(:sha256, password)
 
-    with {:unpadding, {:ok, padded}} <- {:unpadding, safe_decrypt(key, iv, ciphertext)},
+    with {:unpadding, {:ok, padded}} <- {:unpadding, safe_decrypt(state, key, iv, ciphertext)},
          {:decrypt, {:ok, _plaintext} = res} <- {:decrypt, pkcs7_unpad(padded)} do
       res
     else
@@ -278,11 +278,12 @@ defmodule Cluster.Strategy.Gossip do
     end
   end
 
-  defp safe_decrypt(key, iv, ciphertext) do
+  defp safe_decrypt(state, key, iv, ciphertext) do
     try do
-      {:ok, :crypto.block_decrypt(:aes_cbc256, key, iv, ciphertext)}
-    rescue
-      ArgumentError ->
+      {:ok, :crypto.crypto_one_time(:aes_cbc256, key, iv, ciphertext, false)}
+    catch
+      :error, {tag, {file, line}, desc} ->
+        warn(state.topology, "decryption failed: #{inspect tag} (#{file}:#{line}): #{desc}")
         :error
     end
   end
