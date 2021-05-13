@@ -85,7 +85,7 @@ defmodule Cluster.Strategy.Kubernetes do
   alias Cluster.Strategy.State
 
   @default_polling_interval 5_000
-  @kubernetes_master "kubernetes.default.svc."
+  @kubernetes_master "kubernetes.default.svc"
   @service_account_path "/var/run/secrets/kubernetes.io/serviceaccount"
 
   def start_link(args), do: GenServer.start_link(__MODULE__, args)
@@ -200,9 +200,21 @@ defmodule Cluster.Strategy.Kubernetes do
     selector = Keyword.fetch!(config, :kubernetes_selector)
     ip_lookup_mode = Keyword.get(config, :kubernetes_ip_lookup_mode, :endpoints)
 
+    master_name = Keyword.get(config, :kubernetes_master, @kubernetes_master)
+    cluster_domain = System.get_env("CLUSTER_DOMAIN", "#{cluster_name}.local")
+
     master =
-      Keyword.get(config, :kubernetes_master, @kubernetes_master) <>
-        System.get_env("CLUSTER_DOMAIN", "cluster.local.")
+      cond do
+        String.ends_with?(master_name, cluster_domain) ->
+          master_name
+
+        String.ends_with?(master_name, ".") ->
+          # The dot at the end is used to determine that the name is "final"
+          master_name
+
+        :else ->
+          master_name <> "." <> cluster_domain
+      end
 
     cond do
       app_name != nil and selector != nil ->
