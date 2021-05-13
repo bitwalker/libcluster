@@ -1,5 +1,11 @@
-[![Hex.pm Version](http://img.shields.io/hexpm/v/libcluster.svg?style=flat)](https://hex.pm/packages/libcluster)
+# libcluster
+
 [![Build Status](https://travis-ci.org/bitwalker/libcluster.svg?branch=master)](https://travis-ci.org/bitwalker/libcluster)
+[![Module Version](https://img.shields.io/hexpm/v/libcluster.svg)](https://hex.pm/packages/libcluster)
+[![Hex Docs](https://img.shields.io/badge/hex-docs-lightgreen.svg)](https://hexdocs.pm/libcluster/)
+[![Total Download](https://img.shields.io/hexpm/dt/libcluster.svg)](https://hex.pm/packages/libcluster)
+[![License](https://img.shields.io/hexpm/l/libcluster.svg)](https://github.com/bitwalker/libcluster/blob/master/LICENSE)
+[![Last Updated](https://img.shields.io/github/last-commit/bitwalker/libcluster.svg)](https://github.com/bitwalker/libcluster/commits/master)
 
 This library provides a mechanism for automatically forming clusters of Erlang nodes, with
 either static or dynamic node membership. It provides a pluggable "strategy" system, with a variety of strategies
@@ -139,8 +145,11 @@ but are known to exist.
 - [libcluster_ec2](https://github.com/kyleaa/libcluster_ec2) - EC2 clustering strategy based on tags
 - [libcluster_consul](https://github.com/team-telnyx/libcluster_consul) - Consul clustering strategy
 
-## License
+## Copyright and License
 
-MIT
+Copyright (c) 2016 Paul Schoenfelder
+
+This library is MIT licensed. See the
+[LICENSE.md](https://github.com/bitwalker/libcluster/blob/master/LICENSE.md) for details.
 
 [rancher-api]: http://rancher.com/docs/rancher/latest/en/rancher-services/metadata-service/
