@@ -36,7 +36,7 @@ defmodule Cluster.Strategy.Kubernetes do
       # vm.args
       -name app@<%= "${POD_A_RECORD}.${NAMESPACE}.pod.cluster.local" %>
 
-  To set the `NAMESPACE` and `POD_ID` environment variables you can configure your pod as follows:
+  To set the `NAMESPACE` and `POD_IP` environment variables you can configure your pod as follows:
 
       # deployment.yaml
       env:
