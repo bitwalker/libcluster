@@ -1,11 +1,15 @@
-[![Hex.pm Version](http://img.shields.io/hexpm/v/libcluster.svg?style=flat)](https://hex.pm/packages/libcluster)
-[![Build Status](https://travis-ci.org/bitwalker/libcluster.svg?branch=master)](https://travis-ci.org/bitwalker/libcluster)
+# libcluster
+
+[![Build Status](https://github.com/bitwalker/libcluster/workflows/elixir/badge.svg?branch=master)](https://github.com/bitwalker/libcluster/actions?query=workflow%3A%22elixir%22+branch%3Amaster)
+[![Module Version](https://img.shields.io/hexpm/v/libcluster.svg)](https://hex.pm/packages/libcluster)
+[![Hex Docs](https://img.shields.io/badge/hex-docs-lightgreen.svg)](https://hexdocs.pm/libcluster/)
+[![Total Download](https://img.shields.io/hexpm/dt/libcluster.svg)](https://hex.pm/packages/libcluster)
+[![License](https://img.shields.io/hexpm/l/libcluster.svg)](https://github.com/bitwalker/libcluster/blob/master/LICENSE)
+[![Last Updated](https://img.shields.io/github/last-commit/bitwalker/libcluster.svg)](https://github.com/bitwalker/libcluster/commits/master)
 
 This library provides a mechanism for automatically forming clusters of Erlang nodes, with
-either static or dynamic node membership. It provides a publish/subscribe mechanism for cluster
-events so that you can easily be notified when cluster members join or leave, and provides a
-pluggable "strategy" system, with a variety of strategies provided out of the
-box.
+either static or dynamic node membership. It provides a pluggable "strategy" system, with a variety of strategies
+provided out of the box.
 
 You can find supporting documentation [here](https://hexdocs.pm/libcluster).
 
@@ -102,9 +106,12 @@ each strategy is kept up to date with the module implementing it.
 
 ## Clustering
 
-You have a handful of choices with regards to cluster management out of the box: 
+You have a handful of choices with regards to cluster management out of the box:
 
-- `Cluster.Strategy.Epmd`, which relies on `epmd` to connect to a configured set of hosts.
+- `Cluster.Strategy.Epmd`, which relies on `epmd` to connect to a configured set
+  of hosts.
+- `Cluster.Strategy.LocalEpmd`, which relies on `epmd` to connect to discovered
+  nodes on the local host.
 - `Cluster.Strategy.ErlangHosts`, which uses the `.hosts.erlang` file to
   determine which hosts to connect to.
 - `Cluster.Strategy.Gossip`, which uses multicast UDP to form a cluster between
@@ -138,8 +145,11 @@ but are known to exist.
 - [libcluster_ec2](https://github.com/kyleaa/libcluster_ec2) - EC2 clustering strategy based on tags
 - [libcluster_consul](https://github.com/team-telnyx/libcluster_consul) - Consul clustering strategy
 
-## License
+## Copyright and License
 
-MIT
+Copyright (c) 2016 Paul Schoenfelder
+
+This library is MIT licensed. See the
+[LICENSE.md](https://github.com/bitwalker/libcluster/blob/master/LICENSE.md) for details.
 
 [rancher-api]: http://rancher.com/docs/rancher/latest/en/rancher-services/metadata-service/

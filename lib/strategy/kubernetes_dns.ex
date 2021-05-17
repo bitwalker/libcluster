@@ -58,7 +58,6 @@ defmodule Cluster.Strategy.Kubernetes.DNS do
 
   defp load(%State{topology: topology, meta: meta} = state) do
     new_nodelist = MapSet.new(get_nodes(state))
-    added = MapSet.difference(new_nodelist, meta)
     removed = MapSet.difference(meta, new_nodelist)
 
     new_nodelist =
@@ -83,7 +82,7 @@ defmodule Cluster.Strategy.Kubernetes.DNS do
              topology,
              state.connect,
              state.list_nodes,
-             MapSet.to_list(added)
+             MapSet.to_list(new_nodelist)
            ) do
         :ok ->
           new_nodelist
@@ -101,7 +100,7 @@ defmodule Cluster.Strategy.Kubernetes.DNS do
       polling_interval(state)
     )
 
-    %State{state | :meta => new_nodelist}
+    %State{state | meta: new_nodelist}
   end
 
   @spec get_nodes(State.t()) :: [atom()]

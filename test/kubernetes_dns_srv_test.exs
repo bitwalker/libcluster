@@ -106,14 +106,15 @@ defmodule Cluster.Strategy.KubernetesSRVDNSTest do
                   [
                     {10, 50, 0, 'elixir-plug-poc-1.elixir-plug-poc.default.svc.cluster.local'}
                   ]}}
-
-
               end
             ],
             connect: {Nodes, :connect, [self()]},
             disconnect: {Nodes, :disconnect, [self()]},
-            list_nodes: {Nodes, :list_nodes, [[:"node@elixir-plug-poc-1.elixir-plug-poc.default.svc.cluster.local"]]},
-            meta: MapSet.new([:"node@elixir-plug-poc-1.elixir-plug-poc.default.svc.cluster.local"])
+            list_nodes:
+              {Nodes, :list_nodes,
+               [[:"node@elixir-plug-poc-1.elixir-plug-poc.default.svc.cluster.local"]]},
+            meta:
+              MapSet.new([:"node@elixir-plug-poc-1.elixir-plug-poc.default.svc.cluster.local"])
           }
         ]
         |> DNSSRV.start_link()

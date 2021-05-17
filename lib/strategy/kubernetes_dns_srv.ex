@@ -136,7 +136,6 @@ defmodule Cluster.Strategy.Kubernetes.DNSSRV do
 
   defp load(%State{topology: topology, meta: meta} = state) do
     new_nodelist = MapSet.new(get_nodes(state))
-    added = MapSet.difference(new_nodelist, meta)
     removed = MapSet.difference(meta, new_nodelist)
 
     new_nodelist =
@@ -161,7 +160,7 @@ defmodule Cluster.Strategy.Kubernetes.DNSSRV do
              topology,
              state.connect,
              state.list_nodes,
-             MapSet.to_list(added)
+             MapSet.to_list(new_nodelist)
            ) do
         :ok ->
           new_nodelist
@@ -187,7 +186,10 @@ defmodule Cluster.Strategy.Kubernetes.DNSSRV do
     app_name = Keyword.fetch!(config, :application_name)
     service = Keyword.fetch!(config, :service)
     namespace = Keyword.fetch!(config, :namespace)
-    service_k8s_path = "#{service}.#{namespace}.svc.cluster.local."
+
+    service_k8s_path =
+      "#{service}.#{namespace}.svc.#{System.get_env("CLUSTER_DOMAIN", "cluster.local.")}"
+
     resolver = Keyword.get(config, :resolver, &:inet_res.getbyname(&1, :srv))
 
     cond do
