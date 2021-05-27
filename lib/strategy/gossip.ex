@@ -261,7 +261,7 @@ defmodule Cluster.Strategy.Gossip do
   defp encrypt(_state, plaintext, password) do
     iv = :crypto.strong_rand_bytes(16)
     key = :crypto.hash(:sha256, password)
-    ciphertext = :crypto.crypto_one_time(:aes_cbc256, key, iv, pkcs7_pad(plaintext), true)
+    ciphertext = :crypto.crypto_one_time(:aes_256_cbc, key, iv, pkcs7_pad(plaintext), true)
 
     {:ok, iv, ciphertext}
   end
@@ -280,7 +280,7 @@ defmodule Cluster.Strategy.Gossip do
 
   defp safe_decrypt(state, key, iv, ciphertext) do
     try do
-      {:ok, :crypto.crypto_one_time(:aes_cbc256, key, iv, ciphertext, false)}
+      {:ok, :crypto.crypto_one_time(:aes_256_cbc, key, iv, ciphertext, false)}
     catch
       :error, {tag, {file, line}, desc} ->
         warn(state.topology, "decryption failed: #{inspect(tag)} (#{file}:#{line}): #{desc}")
