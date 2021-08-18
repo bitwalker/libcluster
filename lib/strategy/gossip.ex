@@ -120,7 +120,7 @@ defmodule Cluster.Strategy.Gossip do
         ip: ip,
         reuseaddr: true,
         broadcast: true,
-        add_membership: {multicast_addr, {0, 0, 0, 0}}
+        add_membership: {multicast_addr, ip}
       ] ++ multicast_opts ++ reuse_port()
 
     {:ok, socket} = :gen_udp.open(port, options)
