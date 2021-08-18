@@ -103,13 +103,15 @@ defmodule Cluster.Strategy.Gossip do
           [
             multicast_if: sanitize_ip(multicast_if),
             multicast_ttl: ttl,
-            multicast_loop: true
+            multicast_loop: true,
+            add_membership: {multicast_addr, sanitize_ip(multicast_if)}
           ]
 
         :else ->
           [
             multicast_ttl: ttl,
-            multicast_loop: true
+            multicast_loop: true,
+            add_membership: {multicast_addr, {0, 0, 0, 0}}
           ]
       end
 
@@ -120,7 +122,6 @@ defmodule Cluster.Strategy.Gossip do
         ip: ip,
         reuseaddr: true,
         broadcast: true,
-        add_membership: {multicast_addr, {0, 0, 0, 0}}
       ] ++ multicast_opts ++ reuse_port()
 
     {:ok, socket} = :gen_udp.open(port, options)
