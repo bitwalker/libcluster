@@ -1,5 +1,5 @@
 defmodule Cluster.Strategy.Kubernetes do
-  @moduledoc """
+  @moduledoc ~S"""
   This clustering strategy works by loading all endpoints in the current Kubernetes
   namespace with the configured label. It will fetch the addresses of all endpoints with
   that label and attempt to connect. It will continually monitor and update its
@@ -35,6 +35,15 @@ defmodule Cluster.Strategy.Kubernetes do
 
       # vm.args
       -name app@<%= "${POD_A_RECORD}.${NAMESPACE}.pod.cluster.local" %>
+
+  If you use mix releases instead, you can configure the required options in `rel/env.sh.eex`.
+  Doing so will append a `-name` option to the `start` command directly and requires no further
+  changes to the `vm.args`:
+
+      # rel/env.sh.eex
+      export POD_A_RECORD=$(echo $POD_IP | sed 's/\./-/g')
+      export RELEASE_DISTRIBUTION=name
+      export RELEASE_NODE=<%= @release.name %>@${POD_A_RECORD}.${NAMESPACE}.pod.cluster.local
 
   To set the `NAMESPACE` and `POD_IP` environment variables you can configure your pod as follows:
 
