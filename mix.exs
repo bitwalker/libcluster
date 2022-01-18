@@ -61,7 +61,7 @@ defmodule Cluster.Mixfile do
       extras: ["CHANGELOG.md", "README.md"],
       main: "readme",
       source_url: @source_url,
-      source_ref: "v#{@version}",
+      source_ref: @version,
       formatter_opts: [gfm: true]
     ]
   end
