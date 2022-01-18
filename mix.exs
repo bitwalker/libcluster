@@ -32,7 +32,7 @@ defmodule Cluster.Mixfile do
   end
 
   def application do
-    [applications: [:logger, :inets, :jason, :crypto, :ssl]]
+    [extra_applications: [:logger, :inets, :jason, :crypto, :ssl]]
   end
 
   defp deps do
