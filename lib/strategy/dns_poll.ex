@@ -133,9 +133,7 @@ defmodule Cluster.Strategy.DNSPoll do
        }) do
     warn(
       topology,
-      "dns polling strategy is selected, but query or basename param is invalid: #{
-        inspect(%{query: invalid_query, node_basename: invalid_basename})
-      }"
+      "dns polling strategy is selected, but query or basename param is invalid: #{inspect(%{query: invalid_query, node_basename: invalid_basename})}"
     )
 
     []

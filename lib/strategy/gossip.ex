@@ -121,7 +121,7 @@ defmodule Cluster.Strategy.Gossip do
         active: true,
         ip: ip,
         reuseaddr: true,
-        broadcast: true,
+        broadcast: true
       ] ++ multicast_opts ++ reuse_port()
 
     {:ok, socket} = :gen_udp.open(port, options)
