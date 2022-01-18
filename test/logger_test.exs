@@ -19,7 +19,7 @@ defmodule Cluster.LoggerTest do
             ])
           end)
 
-        assert output =~ "[#{unquote(level)}]"
+        assert output =~ ~r/\[#{unquote(level)}(ing)?\]/
         assert output =~ "[libcluster:Elixir.Cluster.LoggerTest] some message"
       end
     end
