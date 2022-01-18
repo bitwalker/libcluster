@@ -1,11 +1,11 @@
 # libcluster
 
-[![Build Status](https://github.com/bitwalker/libcluster/workflows/elixir/badge.svg?branch=master)](https://github.com/bitwalker/libcluster/actions?query=workflow%3A%22elixir%22+branch%3Amaster)
+[![Build Status](https://github.com/bitwalker/libcluster/workflows/elixir/badge.svg?branch=main)](https://github.com/bitwalker/libcluster/actions?query=workflow%3A%22elixir%22+branch%3Amain)
 [![Module Version](https://img.shields.io/hexpm/v/libcluster.svg)](https://hex.pm/packages/libcluster)
 [![Hex Docs](https://img.shields.io/badge/hex-docs-lightgreen.svg)](https://hexdocs.pm/libcluster/)
 [![Total Download](https://img.shields.io/hexpm/dt/libcluster.svg)](https://hex.pm/packages/libcluster)
-[![License](https://img.shields.io/hexpm/l/libcluster.svg)](https://github.com/bitwalker/libcluster/blob/master/LICENSE)
-[![Last Updated](https://img.shields.io/github/last-commit/bitwalker/libcluster.svg)](https://github.com/bitwalker/libcluster/commits/master)
+[![License](https://img.shields.io/hexpm/l/libcluster.svg)](https://github.com/bitwalker/libcluster/blob/main/LICENSE)
+[![Last Updated](https://img.shields.io/github/last-commit/bitwalker/libcluster.svg)](https://github.com/bitwalker/libcluster/commits/main)
 
 This library provides a mechanism for automatically forming clusters of Erlang nodes, with
 either static or dynamic node membership. It provides a pluggable "strategy" system, with a variety of strategies
