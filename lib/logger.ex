@@ -12,8 +12,17 @@ defmodule Cluster.Logger do
     end
   end
 
+  def warn(t, msg) do
+    case Application.get_env(:libcluster, :warn, true) do
+      wrn when wrn in [true, :true, "true"] ->
+        Logger.warn(log_message(t, msg))
+
+      _ ->
+        :ok
+    end
+  end
+
   def info(t, msg), do: Logger.info(log_message(t, msg))
-  def warn(t, msg), do: Logger.warn(log_message(t, msg))
   def error(t, msg), do: Logger.error(log_message(t, msg))
 
   @compile {:inline, log_message: 2}
