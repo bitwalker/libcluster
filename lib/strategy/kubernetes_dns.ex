@@ -5,10 +5,13 @@ defmodule Cluster.Strategy.Kubernetes.DNS do
   It will fetch the addresses of all pods under a shared headless service and attempt to connect.
   It will continually monitor and update its connections every 5s.
 
-  It assumes that all Erlang nodes were launched under a base name, are using longnames, and are unique
-  based on their FQDN, rather than the base hostname. In other words, in the following
-  longname, `<basename>@<ip>`, `basename` would be the value configured through
-  `application_name`.
+  It assumes that all Erlang nodes were launched under a base name, are using longnames,
+  and are unique based on their FQDN, rather than the base hostname.
+  In other words, by default it uses node names given by the following function:
+
+      fn application_name, ip ->
+        :"\#{application_name}@\#{ip}"
+      end
 
   An example configuration is below:
 
@@ -20,8 +23,38 @@ defmodule Cluster.Strategy.Kubernetes.DNS do
             config: [
               service: "myapp-headless",
               application_name: "myapp",
-              polling_interval: 10_000]]]
+              polling_interval: 10_000,  # optional
+              node_naming: [MyModule, :my_node_naming, [extra_arg]]  # optional
+            ]
+          ]
+        ]
 
+  You can also use DNS based naming by passing your own custom function in the
+  `node_naming` option under `config`.
+  For example, to be able to establish a remote shell and run observer in a running
+  system, some people might think in a few tricks involving forwarding BEAM ports
+  and changing the dev machine's `/etc/hosts` (a workaround the fact the dev machine
+  is usually not connected to the internal Kubernetes network).
+  Assuming that they are using regular Deployment objects (no StatefulSet or
+  hostname configuration), that would require a custom naming compatible to Kubernetes DNS,
+  similar to the following:
+
+      @spec my_node_naming(String.t(), String.t()) :: node()
+      def my_node_naming(application_name, ip) do
+        :"\#{application_name}@\#{String.replace(ip, ".", "-")}.default.pod.cluster.local"
+      end
+
+  Of course, to use a custom naming schema, please make sure to change the
+  BEAM arguments accordingly on the release configuration
+  (See `Cluster.Strategy.Kubernetes` for an example).
+
+  Please notice that when using configuration files the `node_naming` option is
+  better given as `[module(), function_name :: atom(), extra_args :: [any()]]`,
+  since this kind of file is compiled into plain Erlang terms and therefore
+  don't support anonymous functions. In the case a list is provided, it will be
+  invoked via `Kernel.apply/3`, and the `extra_args` will be appended to the
+  application name and IP. Two-argument anonymous functions can be used
+  normally when passing options inline, directly to the supervisor.
   """
   use GenServer
   use Cluster.Strategy
@@ -108,6 +141,7 @@ defmodule Cluster.Strategy.Kubernetes.DNS do
     app_name = Keyword.fetch!(config, :application_name)
     service = Keyword.fetch!(config, :service)
     resolver = Keyword.get(config, :resolver, &:inet_res.getbyname(&1, :a))
+    node_naming = Keyword.get(config, :node_naming, &default_node_naming/2)
 
     cond do
       app_name != nil and service != nil ->
@@ -115,7 +149,7 @@ defmodule Cluster.Strategy.Kubernetes.DNS do
 
         case resolver.(headless_service) do
           {:ok, {:hostent, _fqdn, [], :inet, _value, addresses}} ->
-            parse_response(addresses, app_name)
+            parse_response(addresses, app_name, node_naming)
 
           {:error, reason} ->
             error(topology, "lookup against #{service} failed: #{inspect(reason)}")
@@ -144,10 +178,23 @@ defmodule Cluster.Strategy.Kubernetes.DNS do
     Keyword.get(config, :polling_interval, @default_polling_interval)
   end
 
-  defp parse_response(addresses, app_name) do
+  @doc "Assumes the BEAM node uses a long name composed by the app name and the IP."
+  @spec default_node_naming(String.t(), String.t()) :: node()
+  def default_node_naming(app_name, ip) do
+    :"#{app_name}@#{ip}"
+  end
+
+  defp parse_response(addresses, app_name, [module, function, extra_args])
+       when is_atom(module)
+       when is_atom(function)
+       when is_list(extra_args) do
+    parse_response(addresses, app_name, &apply(module, function, [&1, &2 | extra_args]))
+  end
+
+  defp parse_response(addresses, app_name, node_naming) do
     addresses
     |> Enum.map(&:inet_parse.ntoa(&1))
-    |> Enum.map(&"#{app_name}@#{&1}")
-    |> Enum.map(&String.to_atom(&1))
+    |> Enum.map(&to_string/1)
+    |> Enum.map(&node_naming.(app_name, &1))
   end
 end
