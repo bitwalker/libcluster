@@ -230,5 +230,34 @@ defmodule Cluster.Strategy.KubernetesTest do
         end)
       end
     end
+
+    test "can create node names based of custom function" do
+      use_cassette "kubernetes", custom: true do
+        capture_log(fn ->
+          start_supervised!({Kubernetes,
+           [
+             %Cluster.Strategy.State{
+               topology: :name,
+               config: [
+                 kubernetes_node_basename: fn %{labels: labels} ->
+                   app = Map.get(labels, "app")
+                   app <> "-extended"
+                 end,
+                 kubernetes_selector: "app=test_selector",
+                 # If you want to run the test freshly, you'll need to create a DNS Entry
+                 kubernetes_master: "cluster.localhost.",
+                 kubernetes_service_account_path:
+                   Path.join([__DIR__, "fixtures", "kubernetes", "service_account"])
+               ],
+               connect: {Nodes, :connect, [self()]},
+               disconnect: {Nodes, :disconnect, [self()]},
+               list_nodes: {Nodes, :list_nodes, [[]]}
+             }
+           ]})
+
+          assert_receive {:connect, :"development-extended@10.48.33.136"}, 5_000
+        end)
+      end
+    end
   end
 end
