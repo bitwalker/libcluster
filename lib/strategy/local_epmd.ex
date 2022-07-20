@@ -27,7 +27,7 @@ defmodule Cluster.Strategy.LocalEpmd do
   defp discover_nodes do
     suffix = get_host_suffix(Node.self())
 
-    {:ok, names} = :erl_epmd.names()
+    {:ok, names} = :erl_epmd.names(:localhost)
     for {n, _} <- names, do: List.to_atom(n ++ suffix)
   end
 
