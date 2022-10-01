@@ -23,8 +23,36 @@ defmodule Cluster.Strategy.Epmd do
         :ignore
 
       nodes when is_list(nodes) ->
-        Cluster.Strategy.connect_nodes(state.topology, state.connect, state.list_nodes, nodes)
-        :ignore
+        GenServer.start_link(__MODULE__, state)
+        # Cluster.Strategy.connect_nodes(state.topology, state.connect, state.list_nodes, nodes)
+        # :ignore
     end
+  end
+
+  def init(state) do
+    {:ok, state, {:continue, nil}}
+  end
+
+  def handle_continue(_, state), do: handle_info(:heartbeat, state)
+
+  def handle_info(:heartbeat, state) do
+    handle_heartbeat(state)
+    Process.send_after(self, :heartbeat, 1000)
+    {:noreply, state}
+  end
+
+  @spec handle_heartbeat(State.t()) :: :ok
+  defp handle_heartbeat(%State{config: config} = state) do
+    Logger.info("Epmd heartbeat ...")
+
+    case Keyword.get(config, :hosts, []) do
+      [] ->
+        :ignore
+
+      nodes when is_list(nodes) ->
+        Cluster.Strategy.connect_nodes(state.topology, state.connect, state.list_nodes, nodes)
+    end
+
+    # Cluster.Strategy.connect_nodes(topology, connect, list_nodes, [n])
   end
 end
