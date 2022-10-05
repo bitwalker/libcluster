@@ -49,7 +49,5 @@ defmodule Cluster.Strategy.Epmd do
       nodes when is_list(nodes) ->
         Cluster.Strategy.connect_nodes(state.topology, state.connect, state.list_nodes, nodes)
     end
-
-    # Cluster.Strategy.connect_nodes(topology, connect, list_nodes, [n])
   end
 end
