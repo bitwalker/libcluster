@@ -10,6 +10,7 @@ defmodule Cluster.Strategy.Epmd do
           epmd_example: [
             strategy: #{__MODULE__},
             config: [
+              heartbeat: 3_000, # the random range for heartbeating
               hosts: [:"a@127.0.0.1", :"b@127.0.0.1"]]]]
 
   """
@@ -26,8 +27,6 @@ defmodule Cluster.Strategy.Epmd do
 
       nodes when is_list(nodes) ->
         GenServer.start_link(__MODULE__, state)
-        # Cluster.Strategy.connect_nodes(state.topology, state.connect, state.list_nodes, nodes)
-        # :ignore
     end
   end
 
@@ -39,7 +38,7 @@ defmodule Cluster.Strategy.Epmd do
 
   def handle_info(:heartbeat, %State{config: config} = state) do
     handle_heartbeat(state)
-    Process.send_after(self, :heartbeat, :rand.uniform(Keyword.get(config, :heartbeat_span, 3_000)))
+    Process.send_after(self, :heartbeat, :rand.uniform(Keyword.get(config, :heartbeat, 3_000)))
     {:noreply, state}
   end
 
