@@ -37,16 +37,14 @@ defmodule Cluster.Strategy.Epmd do
 
   def handle_continue(_, state), do: handle_info(:heartbeat, state)
 
-  def handle_info(:heartbeat, state) do
+  def handle_info(:heartbeat, %State{config: config} = state) do
     handle_heartbeat(state)
-    Process.send_after(self, :heartbeat, 1000)
+    Process.send_after(self, :heartbeat, :rand.uniform(Keyword.get(config, :heartbeat_span, 3_000)))
     {:noreply, state}
   end
 
   @spec handle_heartbeat(State.t()) :: :ok
   defp handle_heartbeat(%State{config: config} = state) do
-    Logger.info("Epmd heartbeat ...")
-
     case Keyword.get(config, :hosts, []) do
       [] ->
         :ignore
