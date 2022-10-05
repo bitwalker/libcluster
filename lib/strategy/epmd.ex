@@ -18,8 +18,6 @@ defmodule Cluster.Strategy.Epmd do
 
   alias Cluster.Strategy.State
 
-  require Logger
-
   def start_link([%State{config: config} = state]) do
     case Keyword.get(config, :hosts, []) do
       [] ->
