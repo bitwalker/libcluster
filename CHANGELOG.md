@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Use new cypher names
+- Allow Epmd strategy to reconnect after connection failures
 
 ### 3.3.0
 
