@@ -1,26 +1,91 @@
 defmodule Cluster.Strategy.Kubernetes.DNS do
+  @default_polling_interval 5_000
+
   @moduledoc """
-  This clustering strategy works by loading all your Erlang nodes (within Pods) in the current [Kubernetes
-  namespace](https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/). 
-  It will fetch the addresses of all pods under a shared headless service and attempt to connect.
-  It will continually monitor and update its connections every 5s.
+  This clustering strategy works by fetching IP addresses with the help of a headless service in
+  current Kubernetes namespace.
 
-  It assumes that all Erlang nodes were launched under a base name, are using longnames, and are unique
-  based on their FQDN, rather than the base hostname. In other words, in the following
-  longname, `<basename>@<ip>`, `basename` would be the value configured through
-  `application_name`.
+  > This strategy requires exposing pods by a headless service.
+  > If you want to avoid that, you could use `Cluster.Strategy.Kubernetes`.
 
-  An example configuration is below:
+  It assumes that all Erlang nodes are using longnames - `<basename>@<ip>`:
 
+  + all nodes are using the same `<basename>`
+  + all nodes are using unique `<ip>`
+
+  In `<basename>@<ip>`:
+
+  + `<basename>` would be the value configured by `:application_name` option.
+  + `<ip>` would be the value which is controlled by following options:
+     - `:service`
+     - `:resolver`
+
+  ## Getting `<basename>`
+
+  As said above, the basename is configured by `:application_name` option.
+
+  Just one thing to keep in mind - when building an OTP release, make sure that the name of the OTP
+  release matches the name configured by `:application_name`.
+
+  ## Getting `<ip>`
+
+  It will fetch IP addresses of all pods under a headless service and attempt to connect.
+
+  ## Setup
+
+  Getting this strategy to work requires:
+
+  1. exposing pod IP from Kubernetes to the Erlang node.
+  2. setting a headless service for the pods
+  3. setting the name of Erlang node according to the exposed information
+
+  First, expose required information from Kubernetes as environment variables of Erlang node:
+
+      # deployment.yaml
+      env:
+      - name: POD_IP
+        valueFrom:
+          fieldRef:
+            fieldPath: status.podIP
+
+  Second, set a headless service for the pods:
+
+      # deployment.yaml
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: myapp-headless
+      spec:
+        selector:
+          app: myapp
+        type: ClusterIP
+        clusterIP: None
+
+  Then, set the name of Erlang node by using the exposed environment variables. If you use mix releases, you
+  can configure the required options in `rel/env.sh.eex`:
+
+      # rel/env.sh.eex
+      export RELEASE_DISTRIBUTION=name
+      export RELEASE_NODE=<%= @release.name %>@${POD_IP}
+
+  ## Polling Interval
+
+  The default interval to sync topologies is `#{@default_polling_interval}`
+  (#{div(@default_polling_interval, 1000)} seconds). You can configure it with `:polling_interval` option.
+
+  ## An example configuration
 
       config :libcluster,
         topologies: [
-          k8s_example: [
+          erlang_nodes_in_k8s: [
             strategy: #{__MODULE__},
             config: [
               service: "myapp-headless",
               application_name: "myapp",
-              polling_interval: 10_000]]]
+              polling_interval: 10_000
+            ]
+          ]
+        ]
 
   """
   use GenServer
@@ -28,8 +93,6 @@ defmodule Cluster.Strategy.Kubernetes.DNS do
   import Cluster.Logger
 
   alias Cluster.Strategy.State
-
-  @default_polling_interval 5_000
 
   @impl true
   def start_link(args), do: GenServer.start_link(__MODULE__, args)

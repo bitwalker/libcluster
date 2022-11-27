@@ -1,36 +1,125 @@
 defmodule Cluster.Strategy.Kubernetes.DNSSRV do
+  @default_polling_interval 5_000
+
   @moduledoc """
-  This clustering strategy works by issuing a SRV query for the kubernetes headless service
-  under which the stateful set containing your nodes is running.
+  This clustering strategy works by issuing a SRV query for the headless service where the StatefulSet
+  containing your nodes is running.
 
-  For more information, see the kubernetes stateful-application [documentation](https://kubernetes.io/docs/tutorials/stateful-application/basic-stateful-set/#using-stable-network-identities)
+  > This strategy requires deploying pods as a StatefulSet which is exposed by a headless service.
+  > If you want to avoid that, you could use `Cluster.Strategy.Kubernetes.DNS`.
 
-  * It will fetch the FQDN of all pods under the headless service and attempt to connect.
-  * It will continually monitor and update its connections according to the polling_interval (default 5s)
+  It assumes that all Erlang nodes are using longnames - `<basename>@<domain>`:
 
-  The `application_name` is configurable (you may have launched erlang with a different configured name),
-  but will in most cases be the name of your application
+  + all nodes are using the same `<basename>`
+  + all nodes are using unique `<domain>`
 
-  An example configuration is below:
+  In `<basename>@<domain>`:
+
+  + `<basename>` would be the value configured by `:application_name` option.
+  + `<domain>` would be the value which is controlled by following options:
+     - `:service`
+     - `:namespace`
+     - `:resolver`
+
+  ## Getting `<basename>`
+
+  As said above, the basename is configured by `:application_name` option.
+
+  Just one thing to keep in mind - when building an OTP release, make sure that the name of the OTP
+  release matches the name configured by `:application_name`.
+
+  ## Getting `<domain>`
+
+  > For more information, see the kubernetes stateful-application [documentation](https://kubernetes.io/docs/tutorials/stateful-application/basic-stateful-set/#using-stable-network-identities)
+
+  ## Setup
+
+  Getting this strategy to work requires:
+
+  1. deploying pods as a StatefulSet (otherwise, hostname won't set for pods)
+  2. exposing above StatefulSet by a headless service (otherwise, the SRV query won't work as expected)
+  3. setting the name of Erlang node according to hostname of pods
+
+  First, deploying pods as a StatefulSet which is exposed by a headless service. And here is an
+  example of a corresponding Kubernetes definition:
+
+  ```yaml
+  apiVersion: v1
+  kind: Service
+  metadata:
+    name: "myapp-headless"
+    labels:
+      app: myapp
+  spec:
+    ports:
+    - port: 4000
+      name: web
+    clusterIP: None
+    selector:
+      app: myapp
+  ---
+  apiVersion: apps/v1
+  kind: StatefulSet
+  metadata:
+    name: myapp
+  spec:
+    serviceName: "myapp-headless"
+    replicas: 2
+    selector:
+      matchLabels:
+        app: myapp
+    template:
+      metadata:
+        labels:
+          app: myapp
+      spec:
+        containers:
+        - name: myapp
+          image: myapp:v1.0.0
+          imagePullPolicy: Always
+          ports:
+          - containerPort: 4000
+            name: http
+            protocol: TCP
+  ```
+
+  Then, set the name of Erlang node by using the hostname of pod. If you use mix releases, you
+  can configure the required options in `rel/env.sh.eex`:
+
+      # rel/env.sh.eex
+      export RELEASE_DISTRIBUTION=name
+      export RELEASE_NODE=<%= @release.name %>@$(hostname -f)
+
+  ## Polling Interval
+
+  The default interval to sync topologies is `#{@default_polling_interval}`
+  (#{div(@default_polling_interval, 1000)} seconds). You can configure it with `:polling_interval` option.
+
+  ## An example configuration
 
       config :libcluster,
         topologies: [
-          k8s_example: [
+          erlang_nodes_in_k8s: [
             strategy: #{__MODULE__},
             config: [
-              service: "elixir-plug-poc",
-              application_name: "elixir_plug_poc",
+              service: "myapp-headless",
+              application_name: "myapp",
               namespace: "default",
-              polling_interval: 10_000]]]
+              polling_interval: 10_000
+            ]
+          ]
+        ]
 
-  An example of how this strategy extracts topology information from DNS follows:
+  ## An example of how this strategy extracts topology information from DNS
 
-  ```
-  bash-5.0# hostname -f
-  elixir-plug-poc-1.elixir-plug-poc.default.svc.cluster.local
-  bash-5.0# dig SRV elixir-plug-poc.default.svc.cluster.local
+  ```sh
+  $ hostname -f
+  myapp-1.myapp-headless.default.svc.cluster.local
 
-  ; <<>> DiG 9.14.3 <<>> SRV elixir-plug-poc.default.svc.cluster.local
+  # An SRV query for a headless service returns multiple entries
+  $ dig SRV myapp-headless.default.svc.cluster.local
+
+  ; <<>> DiG 9.14.3 <<>> SRV myapp-headless.default.svc.cluster.local
   ;; global options: +cmd
   ;; Got answer:
   ;; WARNING: .local is reserved for Multicast DNS
@@ -39,15 +128,15 @@ defmodule Cluster.Strategy.Kubernetes.DNSSRV do
   ;; flags: qr aa rd ra; QUERY: 1, ANSWER: 2, AUTHORITY: 0, ADDITIONAL: 2
 
   ;; QUESTION SECTION:
-  ;elixir-plug-poc.default.svc.cluster.local. IN SRV
+  ;myapp-headless.default.svc.cluster.local. IN SRV
 
   ;; ANSWER SECTION:
-  elixir-plug-poc.default.svc.cluster.local. 30 IN SRV 10 50 0 elixir-plug-poc-0.elixir-plug-poc.default.svc.cluster.local.
-  elixir-plug-poc.default.svc.cluster.local. 30 IN SRV 10 50 0 elixir-plug-poc-1.elixir-plug-poc.default.svc.cluster.local.
+  myapp-headless.default.svc.cluster.local. 30 IN SRV 10 50 0 myapp-0.myapp-headless.default.svc.cluster.local.
+  myapp-headless.default.svc.cluster.local. 30 IN SRV 10 50 0 myapp-1.myapp-headless.default.svc.cluster.local.
 
   ;; ADDITIONAL SECTION:
-  elixir-plug-poc-0.elixir-plug-poc.default.svc.cluster.local. 30 IN A 10.1.0.95
-  elixir-plug-poc-1.elixir-plug-poc.default.svc.cluster.local. 30 IN A 10.1.0.96
+  myapp-0.myapp-headless.default.svc.cluster.local. 30 IN A 10.1.0.95
+  myapp--1.myapp-headless.default.svc.cluster.local. 30 IN A 10.1.0.96
 
   ;; Query time: 0 msec
   ;; SERVER: 10.96.0.10#53(10.96.0.10)
@@ -55,60 +144,12 @@ defmodule Cluster.Strategy.Kubernetes.DNSSRV do
   ;; MSG SIZE  rcvd: 167
   ```
 
-  And here is an example of a corresponding kubernetes statefulset/service definition:
-
-  ```yaml
-  apiVersion: v1
-  kind: Service
-  metadata:
-    name: elixir-plug-poc
-    labels:
-      app: elixir-plug-poc
-  spec:
-    ports:
-    - port: 4000
-      name: web
-    clusterIP: None
-    selector:
-      app: elixir-plug-poc
-  ---
-  apiVersion: apps/v1
-  kind: StatefulSet
-  metadata:
-    name: elixir-plug-poc
-  spec:
-    serviceName: "elixir-plug-poc"
-    replicas: 2
-    selector:
-      matchLabels:
-        app: elixir-plug-poc
-    template:
-      metadata:
-        labels:
-          app: elixir-plug-poc
-      spec:
-        containers:
-        - name: elixir-plug-poc
-          image: binarytemple/elixir_plug_poc
-          args:
-            - foreground
-          env:
-            - name: ERLANG_COOKIE
-              value: "cookie"
-          imagePullPolicy: Always
-          ports:
-          - containerPort: 4000
-            name: http
-            protocol: TCP
-  ```
   """
   use GenServer
   use Cluster.Strategy
   import Cluster.Logger
 
   alias Cluster.Strategy.State
-
-  @default_polling_interval 5_000
 
   @impl true
   def start_link(args), do: GenServer.start_link(__MODULE__, args)
