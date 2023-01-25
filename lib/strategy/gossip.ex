@@ -141,7 +141,7 @@ defmodule Cluster.Strategy.Gossip do
     case :os.type() do
       {:unix, os_name} ->
         cond do
-          os_name in [:darwin, :freebsd, :openbsd, :netbsd] ->
+          os_name in [:darwin, :freebsd, :openbsd, :linux, :netbsd] ->
             [{:raw, @sol_socket, @so_reuseport, <<1::native-32>>}]
 
           true ->
