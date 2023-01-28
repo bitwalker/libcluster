@@ -22,6 +22,7 @@ You can find supporting documentation [here](https://hexdocs.pm/libcluster).
   - Kubernetes via its metadata API using via a configurable label selector and
     node basename; or alternatively, using DNS.
   - Rancher, via its [metadata API][rancher-api]
+  - Nomad, via its [services API][nomad-api]
 - Easy to provide your own custom clustering strategies for your specific environment.
 - Easy to use provide your own distribution plumbing (i.e. something other than
   Distributed Erlang), by implementing a small set of callbacks. This allows
@@ -120,7 +121,9 @@ You have a handful of choices with regards to cluster management out of the box:
   nodes based on a label selector and basename.
 - `Cluster.Strategy.Kubernetes.DNS`, which uses DNS to join nodes under a shared
   headless service in a given namespace.
-- `Cluster.Strategy.Rancher`, which like the Kubernetes strategy, uses a
+- `Cluster.Strategy.Rancher`, which like the Kubernetes and Nomad strategies, uses a
+  metadata API to query nodes to cluster with.
+- `Cluster.Strategy.Nomad`, which like the Kubernetes and Ranches strategies, uses a
   metadata API to query nodes to cluster with.
 
 You can also define your own strategy implementation, by implementing the
@@ -153,3 +156,4 @@ This library is MIT licensed. See the
 [LICENSE.md](https://github.com/bitwalker/libcluster/blob/master/LICENSE.md) for details.
 
 [rancher-api]: http://rancher.com/docs/rancher/latest/en/rancher-services/metadata-service/
+[nomad-api]: https://www.nomadproject.io/api-docs/services

@@ -3,13 +3,13 @@
 ## Unreleased
 
 - Use new cypher names
+- Adds clustering strategy for Nomad orchestratory (see: github.com/hashicorp/nomad)
 
 ### 3.3.0
 
 ### Changed
 
 - Default multicast address is now 233.252.1.32, was 230.1.1.251, [commit](https://github.com/bitwalker/libcluster/commit/449a65e14f152a83a0f8ee371f05743610cd292f)
-
 
 ### 2.3.0
 
