@@ -19,6 +19,22 @@ defmodule Cluster.Strategy.Kubernetes do
   longname, `<basename>@<domain>`, `basename` would be the value configured in
   `kubernetes_node_basename`.
 
+  In the case when connecting different pods with different basenames
+  `kubernetes_node_basename` can also be applied with a function which returns
+  based on the supplied node info the node basename. If you have 2 apps running
+  such as oban-workers & phoenix api and specific as selector:
+    `kubernetes_selector: "app in (oban-workers, api)"`
+  but then want different basenames so you can differentiate between them
+  you could specifc it as following:
+     `kubernetes_node_basename: fn %{labels: %{"app" => app}} ->
+        case app do
+          "oban-workers" -> "oban"
+          "api" -> "api"
+        end
+      end`
+
+  This allows you to connect different elixir deployements which have different basenames.
+
   `domain` would be the value configured in `mode` and can be either of type `:ip`
   (the pod's ip, can be obtained by setting an env variable to status.podIP), `:hostname`
   or `:dns`, which is the pod's internal A Record. This A Record has the format
@@ -226,6 +242,14 @@ defmodule Cluster.Strategy.Kubernetes do
       end
 
     cond do
+      not app_name_valid?(app_name) ->
+        warn(
+          topology,
+          "kubernetes strategy is selected, but :kubernetes_node_basename is not configured!"
+        )
+
+        []
+
       app_name != nil and selector != nil ->
         selector = URI.encode(selector)
 
@@ -242,6 +266,12 @@ defmodule Cluster.Strategy.Kubernetes do
           {:ok, {{_version, 200, _status}, _headers, body}} ->
             parse_response(ip_lookup_mode, Jason.decode!(body))
             |> Enum.map(fn node_info ->
+              app_name =
+                case app_name do
+                  f when is_function(f, 1) -> f.(node_info)
+                  s when is_binary(s) -> s
+                end
+
               format_node(
                 Keyword.get(config, :mode, :ip),
                 node_info,
@@ -265,14 +295,6 @@ defmodule Cluster.Strategy.Kubernetes do
             meta
         end
 
-      app_name == nil ->
-        warn(
-          topology,
-          "kubernetes strategy is selected, but :kubernetes_node_basename is not configured!"
-        )
-
-        []
-
       selector == nil ->
         warn(
           topology,
@@ -291,13 +313,25 @@ defmodule Cluster.Strategy.Kubernetes do
     case resp do
       %{"items" => items} when is_list(items) ->
         Enum.reduce(items, [], fn
-          %{"subsets" => subsets}, acc when is_list(subsets) ->
+          %{"subsets" => subsets, "metadata" => %{"labels" => labels}}, acc
+          when is_list(subsets) ->
             addrs =
               Enum.flat_map(subsets, fn
                 %{"addresses" => addresses} when is_list(addresses) ->
-                  Enum.map(addresses, fn %{"ip" => ip, "targetRef" => %{"namespace" => namespace}} =
-                                           address ->
-                    %{ip: ip, namespace: namespace, hostname: address["hostname"]}
+                  Enum.map(addresses, fn %{
+                                           "ip" => ip,
+                                           "targetRef" => %{
+                                             "namespace" => namespace,
+                                             "name" => name
+                                           }
+                                         } = address ->
+                    %{
+                      ip: ip,
+                      namespace: namespace,
+                      hostname: address["hostname"],
+                      name: name,
+                      labels: labels
+                    }
                   end)
 
                 _ ->
@@ -321,10 +355,10 @@ defmodule Cluster.Strategy.Kubernetes do
         Enum.map(items, fn
           %{
             "status" => %{"podIP" => ip},
-            "metadata" => %{"namespace" => ns},
+            "metadata" => %{"namespace" => ns, "name" => name, "labels" => labels},
             "spec" => pod_spec
           } ->
-            %{ip: ip, namespace: ns, hostname: pod_spec["hostname"]}
+            %{ip: ip, namespace: ns, hostname: pod_spec["hostname"], name: name, labels: labels}
 
           _ ->
             nil
@@ -353,4 +387,8 @@ defmodule Cluster.Strategy.Kubernetes do
     ip = String.replace(ip, ".", "-")
     :"#{app_name}@#{ip}.#{namespace}.pod.#{cluster_name}.local"
   end
+
+  defp app_name_valid?(s) when is_binary(s), do: true
+  defp app_name_valid?(f) when is_function(f, 1), do: true
+  defp app_name_valid?(_), do: false
 end

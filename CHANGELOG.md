@@ -3,6 +3,8 @@
 ## Unreleased
 
 - Use new cypher names
+- Added suppport for `kubernetes_node_basename` to supply a function callback which gets
+the node info as arg supplied. 
 
 ### 3.3.0
 
