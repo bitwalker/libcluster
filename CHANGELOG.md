@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Use new cypher names
+- Detect Self Signed Certificate Authority for Kubernetes Strategy
 
 ### 3.3.0
 

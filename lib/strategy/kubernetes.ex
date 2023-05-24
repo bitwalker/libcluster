@@ -178,6 +178,22 @@ defmodule Cluster.Strategy.Kubernetes do
     end
   end
 
+  @spec get_ssl_opts(Path.t()) :: Keyword.t()
+  defp get_ssl_opts(service_account_path) do
+    path = Path.join(service_account_path, "ca.crt")
+
+    case File.exists?(path) do
+      true ->
+        [
+          verify: :verify_peer,
+          cacertfile: String.to_charlist(path)
+        ]
+
+      false ->
+        [verify: :verify_none]
+    end
+  end
+
   @spec get_namespace(String.t(), String.t()) :: String.t()
   if Mix.env() == :test do
     defp get_namespace(_service_account_path, nil), do: "__libcluster_test"
@@ -201,6 +217,7 @@ defmodule Cluster.Strategy.Kubernetes do
       Keyword.get(config, :kubernetes_service_account_path, @service_account_path)
 
     token = get_token(service_account_path)
+    ssl_opts = get_ssl_opts(service_account_path)
 
     namespace = get_namespace(service_account_path, Keyword.get(config, :kubernetes_namespace))
     app_name = Keyword.fetch!(config, :kubernetes_node_basename)
@@ -236,7 +253,7 @@ defmodule Cluster.Strategy.Kubernetes do
           end
 
         headers = [{'authorization', 'Bearer #{token}'}]
-        http_options = [ssl: [verify: :verify_none], timeout: 15000]
+        http_options = [ssl: ssl_opts, timeout: 15000]
 
         case :httpc.request(:get, {'https://#{master}/#{path}', headers}, http_options, []) do
           {:ok, {{_version, 200, _status}, _headers, body}} ->
