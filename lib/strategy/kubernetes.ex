@@ -1,51 +1,150 @@
 defmodule Cluster.Strategy.Kubernetes do
-  @moduledoc ~S"""
-  This clustering strategy works by loading all endpoints in the current Kubernetes
-  namespace with the configured label. It will fetch the addresses of all endpoints with
-  that label and attempt to connect. It will continually monitor and update its
-  connections every 5s. Alternatively the IP can be looked up from the pods directly
-  by setting `kubernetes_ip_lookup_mode` to `:pods`.
+  @default_polling_interval 5_000
+  @kubernetes_master "kubernetes.default.svc"
+  @service_account_path "/var/run/secrets/kubernetes.io/serviceaccount"
+
+  @moduledoc """
+  This clustering strategy works by fetching information of endpoints or pods, which are filtered by
+  given Kubernetes namespace and label.
+
+  > This strategy requires a service account with the ability to list endpoints or pods. If you want
+  > to avoid that, you could use one of the DNS-based strategies instead.
+  >
+  > See `Cluster.Strategy.Kubernetes.DNS` and `Cluster.Strategy.Kubernetes.DNSSRV`.
+
+  It assumes that all Erlang nodes are using longnames - `<basename>@<ip_or_domain>`:
+
+  + all nodes are using the same `<basename>`
+  + all nodes are using unique `<ip_or_domain>`
+
+  In `<basename>@<ip_or_domain>`:
+
+  + `<basename>` would be the value configured by `:kubernetes_node_basename` option.
+  + `<ip_or_domain>` would be the value which is controlled by following options:
+     - `:kubernetes_namespace`
+     - `:kubernetes_selector`
+     - `:kubernetes_service_name`
+     - `:kubernetes_ip_lookup_mode`
+     - `:mode`
+
+  ## Getting `<basename>`
+
+  As said above, the basename is configured by `:kubernetes_node_basename` option.
+
+  Just one thing to keep in mind - when building an OTP release, make sure that the name of the OTP
+  release matches the name configured by `:kubernetes_node_basename`.
+
+  ## Getting `<ip_or_domain>`
+
+  ### `:kubernetes_namespace` and `:kubernetes_selector` option
+
+  These two options configure how to filter required endpoints or pods.
+
+  ### `:kubernetes_ip_lookup_mode` option
+
+  These option configures where to lookup the required IP.
+
+  Available values:
+
+  + `:endpoints` (default)
+  + `:pods`
+
+  #### :endpoints
+
+  When setting this value, this strategy will lookup IP from endpoints.
 
   In order for your endpoints to be found they should be returned when you run:
 
       kubectl get endpoints -l app=myapp
 
+  Then, this strategy will fetch the addresses of all endpoints with that label and attempt to
+  connect.
+
+  #### :pods
+
+  When setting this value, this strategy will lookup IP from pods directly.
+
   In order for your pods to be found they should be returned when you run:
 
       kubectl get pods -l app=myapp
 
-  It assumes that all nodes share a base name, are using longnames, and are unique
-  based on their FQDN, rather than the base hostname. In other words, in the following
-  longname, `<basename>@<domain>`, `basename` would be the value configured in
-  `kubernetes_node_basename`.
+  Then, this strategy will fetch the IP of all pods with that label and attempt to connect.
 
-  `domain` would be the value configured in `mode` and can be either of type `:ip`
-  (the pod's ip, can be obtained by setting an env variable to status.podIP), `:hostname`
-  or `:dns`, which is the pod's internal A Record. This A Record has the format
-  `<ip-with-dashes>.<namespace>.pod.cluster.local`, e.g.
-  `1-2-3-4.default.pod.cluster.local`.
 
-  Getting `:dns` to work requires setting the `POD_A_RECORD` environment variable before
-  the application starts. If you use Distillery you can set it in your `pre_configure` hook:
+  ### `:mode` option
+
+  These option configures how to build the longname.
+
+  Available values:
+
+  + `:ip` (default)
+  + `:dns`
+  + `:hostname`
+
+  #### :ip
+
+  In this mode, the IP address is used directly. The longname will be something like:
+
+      myapp@<ip>
+
+  Getting this mode to work requires:
+
+  1. exposing pod IP from Kubernetes to the Erlang node.
+  2. setting the name of Erlang node according to the exposed information
+
+  First, expose required information from Kubernetes as environment variables of Erlang node:
 
       # deployment.yaml
-      command: ["sh", "-c"]
-      args: ["POD_A_RECORD"]
-      args: ["export POD_A_RECORD=$(echo $POD_IP | sed 's/\./-/g') && /app/bin/app foreground"]
+      env:
+      - name: POD_IP
+        valueFrom:
+          fieldRef:
+            fieldPath: status.podIP
 
-      # vm.args
-      -name app@<%= "${POD_A_RECORD}.${NAMESPACE}.pod.cluster.local" %>
-
-  If you use mix releases instead, you can configure the required options in `rel/env.sh.eex`.
-  Doing so will append a `-name` option to the `start` command directly and requires no further
-  changes to the `vm.args`:
+  Then, set the name of Erlang node by using the exposed environment variables. If you use mix releases, you
+  can configure the required options in `rel/env.sh.eex`:
 
       # rel/env.sh.eex
-      export POD_A_RECORD=$(echo $POD_IP | sed 's/\./-/g')
       export RELEASE_DISTRIBUTION=name
-      export RELEASE_NODE=<%= @release.name %>@${POD_A_RECORD}.${NAMESPACE}.pod.cluster.local
+      export RELEASE_NODE=<%= @release.name %>@${POD_IP}
 
-  To set the `NAMESPACE` and `POD_IP` environment variables you can configure your pod as follows:
+  > `export RELEASE_DISTRIBUTION=name` will append a `-name` option to the `start` command directly
+  > and requires no further changes to the `vm.args`.
+
+  #### :hostname
+
+  In this mode, the hostname is used directly. The longname will be something like:
+
+      myapp@<hostname>.<service_name>.<namespace>.svc.<cluster_domain>
+
+  Getting `:hostname` mode to work requires:
+
+  1. deploying pods as a StatefulSet (otherwise, hostname is not set for pods)
+  2. setting `:kubernetes_service_name` to the name of the Kubernetes service that is being lookup
+  3. setting the name of Erlang node according to hostname of pods
+
+  Then, set the name of Erlang node by using the hostname of pod. If you use mix releases, you can
+  configure the required options in `rel/env.sh.eex`:
+
+      # rel/env.sh.eex
+      export RELEASE_DISTRIBUTION=name
+      export RELEASE_NODE=<%= @release.name %>@$(hostname -f)
+
+  > `hostname -f` returns the whole FQDN, which is something like:
+  > `$(hostname).${SERVICE_NAME}.${NAMESPACE}.svc.${CLUSTER_DOMAIN}"`.
+
+  #### :dns
+
+  In this mode, an IP-based pod A record is used. The longname will be something like:
+
+      myapp@<pod_a_record>.<namespace>.pod.<cluster_domain>
+
+  Getting `:dns` mode to work requires:
+
+  1. exposing pod IP from Kubernetes to the Erlang node
+  2. setting the name of Erlang node according to the exposed information
+
+  First, expose required information from Kubernetes as environment variables of Erlang node:
 
       # deployment.yaml
       env:
@@ -58,33 +157,74 @@ defmodule Cluster.Strategy.Kubernetes do
           fieldRef:
             fieldPath: status.podIP
 
-  The benefit of using `:dns` over `:ip` is that you can establish a remote shell (as well as
-  run observer) by using `kubectl port-forward` in combination with some entries in `/etc/hosts`.
+  Then, set the name of Erlang node by using the exposed environment variables. If you use mix
+  releases, you can configure the required options in `rel/env.sh.eex`:
 
-  Using `:hostname` is useful when deploying your app to K8S as a stateful set.  In this case you can
-  set your erlang name as the fully qualified domain name of the pod which would be something similar to
-  `my-app-0.my-service-name.my-namespace.svc.cluster.local`.
-  e.g.
+      # rel/env.sh.eex
+      export POD_A_RECORD=$(echo $POD_IP | sed 's/\./-/g')
+      export CLUSTER_DOMAIN=cluster.local  # modify this value according to your actual situation
+      export RELEASE_DISTRIBUTION=name
+      export RELEASE_NODE=<%= @release.name %>@${POD_A_RECORD}.${NAMESPACE}.pod.${CLUSTER_DOMAIN}
 
-      # vm.args
-      -name app@<%=`(hostname -f)`%>
+  ### Which mode is the best one?
 
-  In this case you must also set `kubernetes_service_name` to the name of the K8S service that is being queried.
+  There is no best, only the best for you:
 
-  `mode` defaults to `:ip`.
+  + If you're not using a StatefulSet, use `:ip` or `:dns`.
+  + If you're using a StatefulSet, use `:hostname`.
 
-  An example configuration is below:
+  And, there is one thing that can be taken into consideration. When using `:ip` or `:dns`, you
+  can establish a remote shell (as well as run observer) by using `kubectl port-forward` in combination
+  with some entries in `/etc/hosts`.
+
+  ## Polling Interval
+
+  The default interval to sync topologies is `#{@default_polling_interval}`
+  (#{div(@default_polling_interval, 1000)} seconds). You can configure it with `:polling_interval` option.
+
+  ## Getting cluster information
+
+  > In general, you don't need to read this, the default values will work.
+
+  This strategy fetchs information of endpoints or pods by accessing the REST API provided by
+  Kubernetes.
+
+  The base URL of the REST API has two parts:
+
+      <master_name>.<cluster_domain>
+
+  `<master_name>` is configured by following options:
+
+  + `:kubernetes_master` - the default value is `#{@kubernetes_master}`
+
+  `<cluster_domain>` is configured by following options and environment variables:
+
+  + `:kubernetes_cluster_name` - the default value is `cluster`, and the final cluster domain will be `<cluster_name>.local`
+  + `CLUSTER_DOMAIN` - when this environment variable is provided, `:kubernetes_cluster_name` will be ignored
+
+  > `<master_name>` and `<cluster_domain>` also affect each other, checkout the source code for more
+  > details.
+
+  Besides the base URL of the REST API, a service account must be provided. The service account is
+  configured by following options:
+
+  + `:kubernetes_service_account_path` - the default value is `#{@service_account_path}`
+
+  ## An example configuration
 
       config :libcluster,
         topologies: [
-          k8s_example: [
+          erlang_nodes_in_k8s: [
             strategy: #{__MODULE__},
             config: [
               mode: :ip,
               kubernetes_node_basename: "myapp",
               kubernetes_selector: "app=myapp",
               kubernetes_namespace: "my_namespace",
-              polling_interval: 10_000]]]
+              polling_interval: 10_000
+            ]
+          ]
+        ]
 
   """
   use GenServer
@@ -92,10 +232,6 @@ defmodule Cluster.Strategy.Kubernetes do
   import Cluster.Logger
 
   alias Cluster.Strategy.State
-
-  @default_polling_interval 5_000
-  @kubernetes_master "kubernetes.default.svc"
-  @service_account_path "/var/run/secrets/kubernetes.io/serviceaccount"
 
   def start_link(args), do: GenServer.start_link(__MODULE__, args)
 

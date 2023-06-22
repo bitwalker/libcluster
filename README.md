@@ -79,7 +79,7 @@ get the config that `Cluster.Supervisor` expects.
 ```elixir
 config :libcluster,
   topologies: [
-    example: [
+    epmd_example: [
       # The selected clustering strategy. Required.
       strategy: Cluster.Strategy.Epmd,
       # Configuration for the provided strategy. Optional.
@@ -93,6 +93,10 @@ config :libcluster,
       # The function to use for listing nodes.
       # This function must return a list of node names. Optional
       list_nodes: {:erlang, :nodes, [:connected]},
+    ],
+    # more topologies can be added ...
+    gossip_example: [
+      # ...
     ]
   ]
 ```

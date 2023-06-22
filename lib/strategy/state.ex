@@ -1,5 +1,7 @@
 defmodule Cluster.Strategy.State do
-  @moduledoc false
+  @moduledoc """
+  The state of one strategy.
+  """
 
   @type t :: %__MODULE__{
           topology: atom,
