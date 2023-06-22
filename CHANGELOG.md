@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Use new cypher names
+- Remove calls to deprecated `Logger.warn/2`
 
 ### 3.3.0
 
