@@ -5,6 +5,10 @@ defmodule Cluster.Strategy.LocalEpmd do
   Unlike Cluster.Strategy.Empd, this strategy assumes that all nodes are on
   the local host and can be discovered by epmd.
 
+  Make sure `epmd` is started before you start your application, or startup
+  will fail. When running with `mix`, you can do this automatically by passing
+  the `--name` or `--sname` flag to start distribution.
+
   It should be configured as follows:
 
       config :libcluster,
