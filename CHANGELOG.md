@@ -4,6 +4,8 @@
 
 - Use new cypher names
 - Allow Epmd strategy to reconnect after connection failures
+- Detect Self Signed Certificate Authority for Kubernetes Strategy
+- Remove calls to deprecated `Logger.warn/2`
 
 ### 3.3.0
 
