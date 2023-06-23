@@ -9,6 +9,7 @@ defmodule Cluster.Strategy.DNSPoll do
   * `poll_interval` - How often to poll in milliseconds (optional; default: 5_000)
   * `query` - DNS query to use (required; e.g. "my-app.example.com")
   * `node_basename` - The short name of the nodes you wish to connect to (required; e.g. "my-app")
+  * `prune` - Remove nodes not returned in DNS response (optional; default: true)
 
   ## Usage
 
@@ -19,7 +20,8 @@ defmodule Cluster.Strategy.DNSPoll do
             config: [
               polling_interval: 5_000,
               query: "my-app.example.com",
-              node_basename: "my-app"]]]
+              node_basename: "my-app",
+              prune: true]]]
   """
 
   use GenServer
@@ -29,6 +31,7 @@ defmodule Cluster.Strategy.DNSPoll do
   alias Cluster.Strategy
 
   @default_polling_interval 5_000
+  @default_prune true
 
   def start_link(args), do: GenServer.start_link(__MODULE__, args)
 
@@ -50,29 +53,12 @@ defmodule Cluster.Strategy.DNSPoll do
          %State{
            topology: topology,
            connect: connect,
-           disconnect: disconnect,
            list_nodes: list_nodes
          } = state
        ) do
     new_nodelist = state |> get_nodes() |> MapSet.new()
-    removed = MapSet.difference(state.meta, new_nodelist)
 
-    new_nodelist =
-      case Strategy.disconnect_nodes(
-             topology,
-             disconnect,
-             list_nodes,
-             MapSet.to_list(removed)
-           ) do
-        :ok ->
-          new_nodelist
-
-        {:error, bad_nodes} ->
-          # Add back the nodes which should have been removed, but which couldn't be for some reason
-          Enum.reduce(bad_nodes, new_nodelist, fn {n, _}, acc ->
-            MapSet.put(acc, n)
-          end)
-      end
+    new_nodelist = if prune?(state), do: prune_nodelist(state, new_nodelist), else: new_nodelist
 
     new_nodelist =
       case Strategy.connect_nodes(
@@ -98,6 +84,37 @@ defmodule Cluster.Strategy.DNSPoll do
 
   defp polling_interval(%{config: config}) do
     Keyword.get(config, :polling_interval, @default_polling_interval)
+  end
+
+  defp prune?(%{config: config}) do
+    Keyword.get(config, :prune, @default_prune)
+  end
+
+  defp prune_nodelist(
+         %State{
+           topology: topology,
+           disconnect: disconnect,
+           list_nodes: list_nodes
+         } = state,
+         new_nodelist
+       ) do
+    removed = MapSet.difference(state.meta, new_nodelist)
+
+    case Strategy.disconnect_nodes(
+           topology,
+           disconnect,
+           list_nodes,
+           MapSet.to_list(removed)
+         ) do
+      :ok ->
+        new_nodelist
+
+      {:error, bad_nodes} ->
+        # Add back the nodes which should have been removed, but which couldn't be for some reason
+        Enum.reduce(bad_nodes, new_nodelist, fn {n, _}, acc ->
+          MapSet.put(acc, n)
+        end)
+    end
   end
 
   defp get_nodes(%State{config: config} = state) do
