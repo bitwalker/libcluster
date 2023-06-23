@@ -58,6 +58,30 @@ defmodule Cluster.Strategy.DNSPollTest do
     end)
   end
 
+  test "keep missing nodes when prune is false" do
+    capture_log(fn ->
+      [
+        %Cluster.Strategy.State{
+          topology: :dns_poll,
+          config: [
+            polling_interval: 100,
+            query: "app",
+            node_basename: "node",
+            prune: false,
+            resolver: fn _query -> [{10, 0, 0, 1}] end
+          ],
+          connect: {Nodes, :connect, [self()]},
+          disconnect: {Nodes, :disconnect, [self()]},
+          list_nodes: {Nodes, :list_nodes, [[:"node@10.0.0.1", :"node@10.0.0.2"]]},
+          meta: MapSet.new([:"node@10.0.0.1", :"node@10.0.0.2"])
+        }
+      ]
+      |> DNSPoll.start_link()
+
+      refute_receive {:disconnect, :"node@10.0.0.2"}, 100
+    end)
+  end
+
   test "keeps state" do
     capture_log(fn ->
       [
