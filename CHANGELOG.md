@@ -6,6 +6,7 @@
 - Allow Epmd strategy to reconnect after connection failures
 - Detect Self Signed Certificate Authority for Kubernetes Strategy
 - Remove calls to deprecated `Logger.warn/2`
+- Correct misspell of 'Empd' -> 'Epmd' in `Cluster.Strategy.LocalEpmd` moduledoc
 
 ### 3.3.0
 
