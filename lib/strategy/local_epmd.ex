@@ -2,7 +2,7 @@ defmodule Cluster.Strategy.LocalEpmd do
   @moduledoc """
   This clustering strategy relies on Erlang's built-in distribution protocol.
 
-  Unlike Cluster.Strategy.Empd, this strategy assumes that all nodes are on
+  Unlike Cluster.Strategy.Epmd, this strategy assumes that all nodes are on
   the local host and can be discovered by epmd.
 
   Make sure `epmd` is started before you start your application, or startup
