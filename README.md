@@ -149,6 +149,7 @@ but are known to exist.
 - [libcluster_ec2](https://github.com/kyleaa/libcluster_ec2) - EC2 clustering strategy based on tags
 - [libcluster_droplet](https://github.com/jsonmaur/libcluster-droplet) - Digital Ocean Droplet clustering strategy
 - [libcluster_consul](https://github.com/team-telnyx/libcluster_consul) - Consul clustering strategy
+- [libcluster_postgres](https://github.com/supabase/libcluster_postgres) - Consul clustering strategy
 
 ## Copyright and License
 
