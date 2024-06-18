@@ -21,7 +21,7 @@ defmodule Cluster.Strategy.KubernetesDNSTest do
               service: "app",
               application_name: "node",
               resolver: fn _query ->
-                {:ok, {:hostent, 'app', [], :inet, 4, [{10, 0, 0, 1}, {10, 0, 0, 2}]}}
+                {:ok, {:hostent, ~c'app', [], :inet, 4, [{10, 0, 0, 1}, {10, 0, 0, 2}]}}
               end
             ],
             connect: {Nodes, :connect, [self()]},
@@ -45,7 +45,7 @@ defmodule Cluster.Strategy.KubernetesDNSTest do
               polling_interval: 100,
               service: "app",
               application_name: "node",
-              resolver: fn _query -> {:ok, {:hostent, 'app', [], :inet, 4, [{10, 0, 0, 1}]}} end
+              resolver: fn _query -> {:ok, {:hostent, ~c'app', [], :inet, 4, [{10, 0, 0, 1}]}} end
             ],
             connect: {Nodes, :connect, [self()]},
             disconnect: {Nodes, :disconnect, [self()]},
@@ -68,7 +68,7 @@ defmodule Cluster.Strategy.KubernetesDNSTest do
               polling_interval: 100,
               service: "app",
               application_name: "node",
-              resolver: fn _query -> {:ok, {:hostent, 'app', [], :inet, 4, [{10, 0, 0, 1}]}} end
+              resolver: fn _query -> {:ok, {:hostent, ~c'app', [], :inet, 4, [{10, 0, 0, 1}]}} end
             ],
             connect: {Nodes, :connect, [self()]},
             disconnect: {Nodes, :disconnect, [self()]},

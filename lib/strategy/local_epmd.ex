@@ -37,7 +37,7 @@ defmodule Cluster.Strategy.LocalEpmd do
 
   defp get_host_suffix(self) do
     self = Atom.to_charlist(self)
-    [_, suffix] = :string.split(self, '@')
-    '@' ++ suffix
+    [_, suffix] = :string.split(self, ~c'@')
+    ~c'@' ++ suffix
   end
 end

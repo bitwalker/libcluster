@@ -388,10 +388,10 @@ defmodule Cluster.Strategy.Kubernetes do
             :pods -> "api/v1/namespaces/#{namespace}/pods?labelSelector=#{selector}"
           end
 
-        headers = [{'authorization', 'Bearer #{token}'}]
+        headers = [{~c'authorization', ~c'Bearer #{token}'}]
         http_options = [ssl: ssl_opts, timeout: 15000]
 
-        case :httpc.request(:get, {'https://#{master}/#{path}', headers}, http_options, []) do
+        case :httpc.request(:get, {~c'https://#{master}/#{path}', headers}, http_options, []) do
           {:ok, {{_version, 200, _status}, _headers, body}} ->
             parse_response(ip_lookup_mode, Jason.decode!(body))
             |> Enum.map(fn node_info ->

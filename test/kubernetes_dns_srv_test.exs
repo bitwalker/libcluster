@@ -23,10 +23,10 @@ defmodule Cluster.Strategy.KubernetesSRVDNSTest do
               application_name: "node",
               resolver: fn _query ->
                 {:ok,
-                 {:hostent, 'elixir-plug-poc.default.svc.cluster.local', [], :srv, 2,
+                 {:hostent, ~c'elixir-plug-poc.default.svc.cluster.local', [], :srv, 2,
                   [
-                    {10, 50, 0, 'elixir-plug-poc-0.elixir-plug-poc.default.svc.cluster.local'},
-                    {10, 50, 0, 'elixir-plug-poc-1.elixir-plug-poc.default.svc.cluster.local'}
+                    {10, 50, 0, ~c'elixir-plug-poc-0.elixir-plug-poc.default.svc.cluster.local'},
+                    {10, 50, 0, ~c'elixir-plug-poc-1.elixir-plug-poc.default.svc.cluster.local'}
                   ]}}
               end
             ],
@@ -59,9 +59,9 @@ defmodule Cluster.Strategy.KubernetesSRVDNSTest do
               application_name: "node",
               resolver: fn _query ->
                 {:ok,
-                 {:hostent, 'elixir-plug-poc.default.svc.cluster.local', [], :srv, 1,
+                 {:hostent, ~c'elixir-plug-poc.default.svc.cluster.local', [], :srv, 1,
                   [
-                    {10, 50, 0, 'elixir-plug-poc-0.elixir-plug-poc.default.svc.cluster.local'}
+                    {10, 50, 0, ~c'elixir-plug-poc-0.elixir-plug-poc.default.svc.cluster.local'}
                   ]}}
               end
             ],
@@ -102,9 +102,9 @@ defmodule Cluster.Strategy.KubernetesSRVDNSTest do
               application_name: "node",
               resolver: fn _query ->
                 {:ok,
-                 {:hostent, 'elixir-plug-poc.default.svc.cluster.local', [], :srv, 2,
+                 {:hostent, ~c'elixir-plug-poc.default.svc.cluster.local', [], :srv, 2,
                   [
-                    {10, 50, 0, 'elixir-plug-poc-1.elixir-plug-poc.default.svc.cluster.local'}
+                    {10, 50, 0, ~c'elixir-plug-poc-1.elixir-plug-poc.default.svc.cluster.local'}
                   ]}}
               end
             ],

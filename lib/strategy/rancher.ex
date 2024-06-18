@@ -130,11 +130,11 @@ defmodule Cluster.Strategy.Rancher do
     case Keyword.fetch!(config, :node_basename) do
       app_name when is_binary(app_name) and app_name != "" ->
         endpoints_path = "latest/self/service"
-        headers = [{'accept', 'application/json'}]
+        headers = [{~c'accept', ~c'application/json'}]
 
         case :httpc.request(
                :get,
-               {'#{@rancher_metadata_base_url}/#{endpoints_path}', headers},
+               {~c'#{@rancher_metadata_base_url}/#{endpoints_path}', headers},
                [],
                []
              ) do
