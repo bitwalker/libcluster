@@ -7,6 +7,7 @@
 - Detect Self Signed Certificate Authority for Kubernetes Strategy
 - Remove calls to deprecated `Logger.warn/2`
 - Correct misspell of 'Empd' -> 'Epmd' in `Cluster.Strategy.LocalEpmd` moduledoc
+- Fix charlist compilation warnings in Elixir 1.17
 
 ### 3.3.0
 
