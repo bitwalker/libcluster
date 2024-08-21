@@ -19,7 +19,7 @@ defmodule Cluster.Strategy.GossipTest do
               if_addr: "127.0.0.1",
               multicast_if: "192.168.1.1",
               multicast_addr: "233.252.1.32",
-              secret: "password",
+              secret: "password"
             ],
             connect: {Cluster.Nodes, :connect, [self()]},
             list_nodes: {Cluster.Nodes, :list_nodes, [[]]}
