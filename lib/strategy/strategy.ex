@@ -50,16 +50,36 @@ defmodule Cluster.Strategy do
         fargs = connect_args ++ [n]
         ensure_exported!(connect_mod, connect_fun, length(fargs))
 
+        start = System.monotonic_time()
+
         case apply(connect_mod, connect_fun, fargs) do
           true ->
+            :telemetry.execute(
+              [:libcluster, :connect_node, :ok],
+              %{duration: System.monotonic_time() - start},
+              %{node: n, topology: topology}
+            )
+
             Cluster.Logger.info(topology, "connected to #{inspect(n)}")
             acc
 
           false ->
+            :telemetry.execute(
+              [:libcluster, :connect_node, :error],
+              %{},
+              %{node: n, topology: topology, reason: :unreachable}
+            )
+
             Cluster.Logger.warn(topology, "unable to connect to #{inspect(n)}")
             [{n, false} | acc]
 
           :ignored ->
+            :telemetry.execute(
+              [:libcluster, :connect_node, :error],
+              %{},
+              %{node: n, topology: topology, reason: :not_part_of_network}
+            )
+
             Cluster.Logger.warn(
               topology,
               "unable to connect to #{inspect(n)}: not part of network"
@@ -100,12 +120,26 @@ defmodule Cluster.Strategy do
         fargs = disconnect_args ++ [n]
         ensure_exported!(disconnect_mod, disconnect_fun, length(fargs))
 
+        start = System.monotonic_time()
+
         case apply(disconnect_mod, disconnect_fun, fargs) do
           true ->
+            :telemetry.execute(
+              [:libcluster, :disconnect_node, :ok],
+              %{duration: System.monotonic_time() - start},
+              %{node: n, topology: topology}
+            )
+
             Cluster.Logger.info(topology, "disconnected from #{inspect(n)}")
             acc
 
           false ->
+            :telemetry.execute(
+              [:libcluster, :disconnect_node, :error],
+              %{},
+              %{node: n, topology: topology, reason: :already_disconnected}
+            )
+
             Cluster.Logger.warn(
               topology,
               "disconnect from #{inspect(n)} failed because we're already disconnected"
@@ -114,6 +148,12 @@ defmodule Cluster.Strategy do
             acc
 
           :ignored ->
+            :telemetry.execute(
+              [:libcluster, :disconnect_node, :error],
+              %{},
+              %{node: n, topology: topology, reason: :not_part_of_network}
+            )
+
             Cluster.Logger.warn(
               topology,
               "disconnect from #{inspect(n)} failed because it is not part of the network"
@@ -122,6 +162,12 @@ defmodule Cluster.Strategy do
             acc
 
           reason ->
+            :telemetry.execute(
+              [:libcluster, :disconnect_node, :error],
+              %{},
+              %{node: n, topology: topology, reason: inspect(reason)}
+            )
+
             Cluster.Logger.warn(
               topology,
               "disconnect from #{inspect(n)} failed with: #{inspect(reason)}"
