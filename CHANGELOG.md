@@ -8,6 +8,12 @@
 - Remove calls to deprecated `Logger.warn/2`
 - Correct misspell of 'Empd' -> 'Epmd' in `Cluster.Strategy.LocalEpmd` moduledoc
 
+## 3.4.0
+
+### Added
+
+- Telemetry events added for tracking node connects and disconnects
+
 ### 3.3.0
 
 ### Changed
