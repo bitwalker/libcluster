@@ -38,9 +38,9 @@ defmodule Cluster.Mixfile do
   defp deps do
     [
       {:ex_doc, ">= 0.0.0", only: :dev, runtime: false},
-      {:dialyxir, "~> 1.0", only: :dev, runtime: false},
-      {:exvcr, "~> 0.11", only: :test, runtime: false},
-      {:jason, "~> 1.1"}
+      {:dialyxir, "~> 1.4.3", only: :dev, runtime: false},
+      {:exvcr, "~> 0.15.1", only: :test, runtime: false},
+      {:jason, "~> 1.4.4"}
     ]
   end
 

@@ -7,6 +7,8 @@
 - Detect Self Signed Certificate Authority for Kubernetes Strategy
 - Remove calls to deprecated `Logger.warn/2`
 - Correct misspell of 'Empd' -> 'Epmd' in `Cluster.Strategy.LocalEpmd` moduledoc
+- Replace deprecated single quotes by ~c sigil
+- Update deps versions
 
 ### 3.3.0
 
