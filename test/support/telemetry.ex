@@ -6,14 +6,15 @@ defmodule Cluster.Telemetry do
   def setup_telemetry(event) do
     telemetry_handle_id = "test-telemetry-handler-#{inspect(self())}"
 
-    :ok = :telemetry.attach_many(
-      telemetry_handle_id,
-      [
-        event,
-      ],
-      &send_to_pid/4,
-      nil
-    )
+    :ok =
+      :telemetry.attach_many(
+        telemetry_handle_id,
+        [
+          event
+        ],
+        &send_to_pid/4,
+        nil
+      )
 
     :ok = on_exit(fn -> :telemetry.detach(telemetry_handle_id) end)
   end

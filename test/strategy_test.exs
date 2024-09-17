@@ -35,8 +35,8 @@ defmodule Cluster.StrategyTest do
       assert_receive {:connect, :"foo@some.host"}
 
       assert_receive {:telemetry_event,
-        {[:libcluster, :connect_node, :ok], %{duration: _},
-          %{node: :"foo@some.host", topology: _}, _}}
+                      {[:libcluster, :connect_node, :ok], %{duration: _},
+                       %{node: :"foo@some.host", topology: _}, _}}
     end
 
     test "handles connect failure" do
@@ -53,8 +53,8 @@ defmodule Cluster.StrategyTest do
       assert_receive {:connect, :"foo@some.host"}
 
       assert_receive {:telemetry_event,
-        {[:libcluster, :connect_node, :error], %{},
-          %{node: :"foo@some.host", topology: _, reason: :unreachable}, _}}
+                      {[:libcluster, :connect_node, :error], %{},
+                       %{node: :"foo@some.host", topology: _, reason: :unreachable}, _}}
     end
 
     test "handles connect ignore" do
@@ -71,8 +71,8 @@ defmodule Cluster.StrategyTest do
       assert_receive {:connect, :"foo@some.host"}
 
       assert_receive {:telemetry_event,
-        {[:libcluster, :connect_node, :error], %{},
-          %{node: :"foo@some.host", topology: _, reason: :not_part_of_network,}, _}}
+                      {[:libcluster, :connect_node, :error], %{},
+                       %{node: :"foo@some.host", topology: _, reason: :not_part_of_network}, _}}
     end
   end
 
@@ -102,8 +102,8 @@ defmodule Cluster.StrategyTest do
       assert_receive {:disconnect, :"foo@some.host"}
 
       assert_receive {:telemetry_event,
-        {[:libcluster, :disconnect_node, :ok], %{duration: _},
-          %{node: :"foo@some.host", topology: _}, _}}
+                      {[:libcluster, :disconnect_node, :ok], %{duration: _},
+                       %{node: :"foo@some.host", topology: _}, _}}
     end
 
     test "handles disconnect error" do
@@ -123,8 +123,8 @@ defmodule Cluster.StrategyTest do
       assert_receive {:disconnect, :"foo@some.host"}
 
       assert_receive {:telemetry_event,
-        {[:libcluster, :disconnect_node, :error], %{},
-          %{node: :"foo@some.host", topology: _, reason: ":failed"}, _}}
+                      {[:libcluster, :disconnect_node, :error], %{},
+                       %{node: :"foo@some.host", topology: _, reason: ":failed"}, _}}
     end
   end
 end
