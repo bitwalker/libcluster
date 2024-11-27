@@ -45,6 +45,38 @@
         }
       },
       "request_body": "",
+      "url": "https://cluster.localhost./api/v1/namespaces/__libcluster_test/endpoints?labelSelector=app=test_selector&resourceVersion=0"
+    },
+    "response": {
+      "binary": false,
+      "body": "{\"kind\":\"EndpointsList\",\"apiVersion\":\"v1\",\"metadata\":{\"selfLink\":\"SELFLINK_PLACEHOLDER\",\"resourceVersion\":\"17042410\"},\"items\":[{\"metadata\":{\"name\":\"development-development\",\"namespace\":\"airatel-service-localization\",\"selfLink\":\"SELFLINK_PLACEHOLDER\",\"uid\":\"7e3faf1e-0294-11e8-bcad-42010a9c01cc\",\"resourceVersion\":\"17037787\",\"creationTimestamp\":\"2018-01-26T12:29:03Z\",\"labels\":{\"app\":\"development\",\"chart\":\"CHART_PLACEHOLDER\"}},\"subsets\":[{\"addresses\":[{\"hostname\":\"my-hostname-0\",\"ip\":\"10.48.33.136\",\"nodeName\":\"gke-jshmrtn-cluster-default-pool-a61da41f-db9x\",\"targetRef\":{\"kind\":\"Pod\",\"namespace\":\"airatel-service-localization\",\"name\":\"development-4292695165-mgq9f\",\"uid\":\"eb0f3e80-0295-11e8-bcad-42010a9c01cc\",\"resourceVersion\":\"17037783\"}}],\"ports\":[{\"name\":\"web\",\"port\":8443,\"protocol\":\"TCP\"}]}]}]}\n",
+      "headers": {
+        "date": "Fri, 26 Jan 2018 13:18:46 GMT",
+        "content-length": "877",
+        "content-type": "application/json"
+      },
+      "status_code": [
+        "HTTP/1.1",
+        200,
+        "OK"
+      ],
+      "type": "ok"
+    }
+  },
+  {
+    "request": {
+      "body": "",
+      "headers": {
+        "authorization": "***"
+      },
+      "method": "get",
+      "options": {
+        "httpc_options": [],
+        "http_options": {
+          "ssl": "[verify: :verify_none]"
+        }
+      },
+      "request_body": "",
       "url": "https://cluster.localhost./api/v1/namespaces/airatel-service-test/endpoints?labelSelector=app=test_selector"
     },
     "response": {

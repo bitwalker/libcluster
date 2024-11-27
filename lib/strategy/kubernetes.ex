@@ -25,6 +25,7 @@ defmodule Cluster.Strategy.Kubernetes do
      - `:kubernetes_selector`
      - `:kubernetes_service_name`
      - `:kubernetes_ip_lookup_mode`
+     - `:kubernetes_resource_version`
      - `:mode`
 
   ## Getting `<basename>`
@@ -70,6 +71,12 @@ defmodule Cluster.Strategy.Kubernetes do
 
   Then, this strategy will fetch the IP of all pods with that label and attempt to connect.
 
+  ### `kubernetes_resource_version` option
+
+  When setting this value, this strategy will use given resource version value to fetch k8s resources,
+  where each modification of the resource increments the resource version.
+
+  If set to `0` kubernetes will use cached version, that may be outdated.
 
   ### `:mode` option
 
@@ -361,6 +368,7 @@ defmodule Cluster.Strategy.Kubernetes do
     service_name = Keyword.get(config, :kubernetes_service_name)
     selector = Keyword.fetch!(config, :kubernetes_selector)
     ip_lookup_mode = Keyword.get(config, :kubernetes_ip_lookup_mode, :endpoints)
+    resource_version = Keyword.get(config, :kubernetes_resource_version, nil)
 
     master_name = Keyword.get(config, :kubernetes_master, @kubernetes_master)
     cluster_domain = System.get_env("CLUSTER_DOMAIN", "#{cluster_name}.local")
@@ -382,10 +390,16 @@ defmodule Cluster.Strategy.Kubernetes do
       app_name != nil and selector != nil ->
         selector = URI.encode(selector)
 
+        resource_version_param =
+          if is_nil(resource_version), do: "", else: "&resourceVersion=#{resource_version}"
+
         path =
           case ip_lookup_mode do
-            :endpoints -> "api/v1/namespaces/#{namespace}/endpoints?labelSelector=#{selector}"
-            :pods -> "api/v1/namespaces/#{namespace}/pods?labelSelector=#{selector}"
+            :endpoints ->
+              "api/v1/namespaces/#{namespace}/endpoints?labelSelector=#{selector}#{resource_version_param}"
+
+            :pods ->
+              "api/v1/namespaces/#{namespace}/pods?labelSelector=#{selector}#{resource_version_param}"
           end
 
         headers = [{~c"authorization", ~c"Bearer #{token}"}]
