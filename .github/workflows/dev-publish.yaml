@@ -1,0 +1,76 @@
+name: Elixir Dev Publish
+
+env:
+  DEBIAN_FRONTEND: noninteractive
+  DEPENDENCY_FILE: mix.lock
+  ELIXIR_VERSION: 1.11.4 # Elixir version used during package publishing
+  JOB_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+  OTP_VERSION: 23.3.4.7 # OTP version used during package publishing
+  RELEVANT_FILES: "config lib test mix.exs mix.lock" # Important, this controls the caching, make sure to keep this right
+  REPOSITORY: fresha_libcluster
+  RUNNER_OS: ubuntu20 # Must match Elixir/OTP version in described in action erlef/setup-beam@v1
+  SHA: ${{ github.sha }}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+  workflow_dispatch:
+    inputs: {}
+
+jobs:
+  dev-publish:
+    name: Dev Publish
+    runs-on: runs-on,runner=4cpu-linux-x64
+    steps:
+      - name: Checkout latest codebase
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.sha }}
+          clean: false
+          persist-credentials: true
+      - name: Get SHA sum (HASH) of relevant files
+        id: hash
+        shell: bash
+        run: |
+          git config --global --add safe.directory /__w/${{ env.REPOSITORY }}/${{ env.REPOSITORY }}
+          echo "Get SHA sum (HASH) of relevant files"
+          HASH="$(git ls-tree ${{ env.SHA }} -- ${{ env.RELEVANT_FILES }} | sha1sum | cut -d' ' -f1)"
+          echo "BUILD HASH FOR THE CODEBASE IS: $HASH"
+          echo "IT WILL BE USED TO DETERMINE ELIGIBILITY OF THE CODEBASE FOR THE RELEASE"
+          echo "APPROVAL PRODUCED BY SUCCESSFULL CHECKS EXECUTION WILL LAND IN CACHE"
+          echo "HASH=$HASH" >> $GITHUB_OUTPUT
+      - name: Check for CI successes
+        uses: runs-on/cache/restore@v4
+        with:
+          key: ${{ runner.os }}-${{ env.REPOSITORY }}-approval-${{ steps.hash.outputs.HASH }}
+          path: approval.txt
+          fail-on-cache-miss: true
+      - name: Setup Elixir
+        uses: erlef/setup-beam@v1
+        env:
+          ImageOS: ${{ env.RUNNER_OS }}
+        with:
+          elixir-version: ${{ env.ELIXIR_VERSION }}
+          otp-version: ${{ env.OTP_VERSION }}
+          version-type: strict
+      - name: Hex auth
+        run: mix hex.organization auth fresha --key ${{ secrets.HEX_ORGANIZATION_WRITE_KEY }}
+        shell: bash
+      - name: Get dependencies
+        shell: bash
+        run: |
+          echo "Getting dependencies"
+          mix deps.get
+      - name: Mark package version with dev suffix
+        shell: bash
+        run: |
+          sed -i "s/version: \"[[:digit:]]\+\.[[:digit:]]\+\.[[:digit:]]\+/&-git-$(git rev-parse --verify --short=4 HEAD)/" mix.exs
+      - name: Publish dev package
+        shell: bash
+        env:
+          HEX_API_KEY: ${{ secrets.HEX_ORGANIZATION_WRITE_KEY }}
+        run: |
+          echo "Publishing dev package"
+          mix hex.publish --yes

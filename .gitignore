@@ -28,3 +28,5 @@ libcluster-*.tar
 # Misc.
 /priv/test/service_account/*
 !/priv/test/service_account/.gitkeep
+/libcluster.iml
+/.idea/
