@@ -7,7 +7,7 @@ env:
   JOB_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
   OTP_VERSION: 23.3.4.7 # OTP version used during package publishing
   RELEVANT_FILES: "config lib test mix.exs mix.lock" # Important, this controls the caching, make sure to keep this right
-  REPOSITORY: fresha_libcluster
+  REPOSITORY: libcluster
   RUNNER_OS: ubuntu20 # Must match Elixir/OTP version in described in action erlef/setup-beam@v1
   SHA: ${{ github.sha }}
 
