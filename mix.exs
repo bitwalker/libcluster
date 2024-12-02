@@ -6,7 +6,7 @@ defmodule Cluster.Mixfile do
 
   def project do
     [
-      app: :fresha_libcluster,
+      app: :libcluster,
       version: @version,
       elixir: "~> 1.13",
       build_embedded: Mix.env() == :prod,

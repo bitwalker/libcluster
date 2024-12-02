@@ -3,7 +3,7 @@ name: Elixir CI Checks
 env:
   DEBIAN_FRONTEND: noninteractive
   DEPENDENCY_FILE: mix.lock
-  ELIXIR_VERSION: 1.10.4 # Elixir version used during package publishing
+  ELIXIR_VERSION: 1.13.0 # Elixir version used during package publishing
   JOB_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
   OTP_VERSION: 22.3.4.7 # OTP version used during package publishing
   RELEVANT_FILES: "config lib test mix.exs mix.lock" # Important, this controls the caching, make sure to keep this right
@@ -35,7 +35,7 @@ jobs:
       fail-fast: false
       matrix:
         otp: [22.3.4.7]
-        elixir: [1.10.4]
+        elixir: [1.13.0]
         runner-os: [ubuntu20]
     steps:
       - name: Checkout latest codebase
@@ -104,7 +104,7 @@ jobs:
       fail-fast: false
       matrix:
         otp: [22.3.4.7]
-        elixir: [1.10.4]
+        elixir: [1.13.0]
         runner-os: [ubuntu20]
     steps:
       - name: Checkout latest codebase
@@ -253,7 +253,7 @@ jobs:
     runs-on: runs-on,runner=2cpu-linux-x64
     name: Check release
     container:
-      image: elixir:1.10-slim
+      image: elixir:1.13-slim
     steps:
       - uses: actions/checkout@v4
       - name: Install Dependencies
