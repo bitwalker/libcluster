@@ -19,6 +19,11 @@ defmodule Cluster.Mixfile do
       docs: docs(),
       deps: deps(),
       elixirc_paths: elixirc_paths(Mix.env()),
+      test_coverage: [
+        summary: [
+          threshold: 60
+        ]
+      ],
       dialyzer: [
         flags: ~w(-Wunmatched_returns -Werror_handling -Wrace_conditions -Wno_opaque -Wunderspecs)
       ],
