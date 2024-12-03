@@ -188,8 +188,8 @@ jobs:
           echo ""
           git show HEAD~1:mix.exs > mix.old.exs
           diff mix.old.exs mix.exs > diff.txt || true
-          old_version=$(grep -oP 'version: "\K[^"]+' mix.old.exs)
-          new_version=$(grep -oP 'version: "\K[^"]+' mix.exs)
+          old_version=$(grep -oP 'version "\K[^"]+' mix.old.exs)
+          new_version=$(grep -oP 'version "\K[^"]+' mix.exs)
           echo "Old Version: $old_version | New Version: $new_version"
           if [ "$new_version" != "$old_version" ]; then
             if [ "$new_version" \> "$old_version" ]; then
