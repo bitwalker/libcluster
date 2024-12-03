@@ -1,7 +1,7 @@
 defmodule Cluster.Mixfile do
   use Mix.Project
 
-  @version "3.4.1"
+  @version "4.0.0"
   @source_url "https://github.com/bitwalker/libcluster"
 
   def project do
@@ -12,13 +12,18 @@ defmodule Cluster.Mixfile do
       build_embedded: Mix.env() == :prod,
       start_permanent: Mix.env() == :prod,
       description: """
-        Automatic Erlang cluster formation and management for Elixir/Erlang
-        applications
+      Automatic Erlang cluster formation and management for Elixir/Erlang
+      applications. Fork of Bitwalker's libcluster with additional features.
       """,
       package: package(),
       docs: docs(),
       deps: deps(),
       elixirc_paths: elixirc_paths(Mix.env()),
+      test_coverage: [
+        summary: [
+          threshold: 60
+        ]
+      ],
       dialyzer: [
         flags: ~w(-Wunmatched_returns -Werror_handling -Wrace_conditions -Wno_opaque -Wunderspecs)
       ],
@@ -48,7 +53,7 @@ defmodule Cluster.Mixfile do
   defp package do
     [
       files: ["lib", "mix.exs", "README.md", "LICENSE.md", "CHANGELOG.md"],
-      maintainers: ["Paul Schoenfelder"],
+      maintainers: ["Piotr Rybarczyk"],
       licenses: ["MIT"],
       links: %{
         "Changelog" => "https://hexdocs.pm/libcluster/changelog.html",
