@@ -1,4 +1,5 @@
-# libcluster
+# libcluster - Fork of original libcluster
+Used to support AWS k8s cluster cache
 
 [![Build Status](https://github.com/bitwalker/libcluster/workflows/elixir/badge.svg?branch=main)](https://github.com/bitwalker/libcluster/actions?query=workflow%3A%22elixir%22+branch%3Amain)
 [![Module Version](https://img.shields.io/hexpm/v/libcluster.svg)](https://hex.pm/packages/libcluster)
