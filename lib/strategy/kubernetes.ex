@@ -388,18 +388,19 @@ defmodule Cluster.Strategy.Kubernetes do
 
     cond do
       app_name != nil and selector != nil ->
-        selector = URI.encode(selector)
-
-        resource_version_param =
-          if is_nil(resource_version), do: "", else: "&resourceVersion=#{resource_version}"
+        query_params =
+          []
+          |> apply_param(:labelSelector, selector)
+          |> apply_param(:resourceVersion, resource_version)
+          |> URI.encode_query(:rfc3986)
 
         path =
           case ip_lookup_mode do
             :endpoints ->
-              "api/v1/namespaces/#{namespace}/endpoints?labelSelector=#{selector}#{resource_version_param}"
+              "api/v1/namespaces/#{namespace}/endpoints?#{query_params}"
 
             :pods ->
-              "api/v1/namespaces/#{namespace}/pods?labelSelector=#{selector}#{resource_version_param}"
+              "api/v1/namespaces/#{namespace}/pods?#{query_params}"
           end
 
         headers = [{~c"authorization", ~c"Bearer #{token}"}]
@@ -453,6 +454,12 @@ defmodule Cluster.Strategy.Kubernetes do
         []
     end
   end
+
+  defp apply_param(params, key, value) when value != nil do
+    [{key, value} | params]
+  end
+
+  defp apply_param(params, _key, _value), do: params
 
   defp parse_response(:endpoints, resp) do
     case resp do
