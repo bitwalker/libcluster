@@ -25,7 +25,7 @@ defmodule Cluster.Strategy.Kubernetes do
      - `:kubernetes_selector`
      - `:kubernetes_service_name`
      - `:kubernetes_ip_lookup_mode`
-     - `:kubernetes_resource_version`
+     - `:kubernetes_use_cached_resources`
      - `:mode`
 
   ## Getting `<basename>`
@@ -71,12 +71,11 @@ defmodule Cluster.Strategy.Kubernetes do
 
   Then, this strategy will fetch the IP of all pods with that label and attempt to connect.
 
-  ### `kubernetes_resource_version` option
+  ### `kubernetes_use_cached_resources` option
 
-  When setting this value, this strategy will use given resource version value to fetch k8s resources,
-  where each modification of the resource increments the resource version.
-
-  If set to `0` kubernetes will use cached version, that may be outdated.
+  When setting this value, this strategy will use cached resource version value to fetch k8s resources.
+  In k8s resources are incremented by 1 on every change, this version will set requested resourceVersion
+  to 0, that will use cached versions of resources, take in mind that this may be outdated or unavailable.
 
   ### `:mode` option
 
@@ -368,7 +367,9 @@ defmodule Cluster.Strategy.Kubernetes do
     service_name = Keyword.get(config, :kubernetes_service_name)
     selector = Keyword.fetch!(config, :kubernetes_selector)
     ip_lookup_mode = Keyword.get(config, :kubernetes_ip_lookup_mode, :endpoints)
-    resource_version = Keyword.get(config, :kubernetes_resource_version, nil)
+
+    use_cache = Keyword.get(config, :kubernetes_use_cached_resources, false)
+    resource_version = if use_cache, do: 0, else: nil
 
     master_name = Keyword.get(config, :kubernetes_master, @kubernetes_master)
     cluster_domain = System.get_env("CLUSTER_DOMAIN", "#{cluster_name}.local")

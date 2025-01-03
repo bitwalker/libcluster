@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Add `kubernates_resource_version` option to Kubernetes strategy
+- Add `kubernetes_use_cached_resources` option to Kubernetes strategy
 
 ## 3.4.1
 
