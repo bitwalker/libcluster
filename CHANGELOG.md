@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Add `kubernetes_use_cached_resources` option to Kubernetes strategy
+
+## 3.4.1
+
 - Use new cypher names
 - Allow Epmd strategy to reconnect after connection failures
 - Detect Self Signed Certificate Authority for Kubernetes Strategy

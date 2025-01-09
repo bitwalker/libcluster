@@ -25,6 +25,7 @@ defmodule Cluster.Strategy.Kubernetes do
      - `:kubernetes_selector`
      - `:kubernetes_service_name`
      - `:kubernetes_ip_lookup_mode`
+     - `:kubernetes_use_cached_resources`
      - `:mode`
 
   ## Getting `<basename>`
@@ -70,6 +71,11 @@ defmodule Cluster.Strategy.Kubernetes do
 
   Then, this strategy will fetch the IP of all pods with that label and attempt to connect.
 
+  ### `kubernetes_use_cached_resources` option
+
+  When setting this value, this strategy will use cached resource version value to fetch k8s resources.
+  In k8s resources are incremented by 1 on every change, this version will set requested resourceVersion
+  to 0, that will use cached versions of resources, take in mind that this may be outdated or unavailable.
 
   ### `:mode` option
 
@@ -362,6 +368,9 @@ defmodule Cluster.Strategy.Kubernetes do
     selector = Keyword.fetch!(config, :kubernetes_selector)
     ip_lookup_mode = Keyword.get(config, :kubernetes_ip_lookup_mode, :endpoints)
 
+    use_cache = Keyword.get(config, :kubernetes_use_cached_resources, false)
+    resource_version = if use_cache, do: 0, else: nil
+
     master_name = Keyword.get(config, :kubernetes_master, @kubernetes_master)
     cluster_domain = System.get_env("CLUSTER_DOMAIN", "#{cluster_name}.local")
 
@@ -380,12 +389,19 @@ defmodule Cluster.Strategy.Kubernetes do
 
     cond do
       app_name != nil and selector != nil ->
-        selector = URI.encode(selector)
+        query_params =
+          []
+          |> apply_param(:labelSelector, selector)
+          |> apply_param(:resourceVersion, resource_version)
+          |> URI.encode_query(:rfc3986)
 
         path =
           case ip_lookup_mode do
-            :endpoints -> "api/v1/namespaces/#{namespace}/endpoints?labelSelector=#{selector}"
-            :pods -> "api/v1/namespaces/#{namespace}/pods?labelSelector=#{selector}"
+            :endpoints ->
+              "api/v1/namespaces/#{namespace}/endpoints?#{query_params}"
+
+            :pods ->
+              "api/v1/namespaces/#{namespace}/pods?#{query_params}"
           end
 
         headers = [{~c"authorization", ~c"Bearer #{token}"}]
@@ -439,6 +455,12 @@ defmodule Cluster.Strategy.Kubernetes do
         []
     end
   end
+
+  defp apply_param(params, key, value) when value != nil do
+    [{key, value} | params]
+  end
+
+  defp apply_param(params, _key, _value), do: params
 
   defp parse_response(:endpoints, resp) do
     case resp do

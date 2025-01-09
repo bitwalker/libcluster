@@ -81,6 +81,60 @@ defmodule Cluster.Strategy.KubernetesTest do
       end
     end
 
+    test "works with cached resources" do
+      use_cassette "kubernetes", custom: true do
+        capture_log(fn ->
+          start_supervised!({Kubernetes,
+           [
+             %Cluster.Strategy.State{
+               topology: :name,
+               config: [
+                 kubernetes_node_basename: "test_basename",
+                 kubernetes_selector: "app=test_selector",
+                 kubernetes_use_cached_resources: true,
+                 # If you want to run the test freshly, you'll need to create a DNS Entry
+                 kubernetes_master: "cluster.localhost.",
+                 kubernetes_service_account_path:
+                   Path.join([__DIR__, "fixtures", "kubernetes", "service_account"])
+               ],
+               connect: {Nodes, :connect, [self()]},
+               disconnect: {Nodes, :disconnect, [self()]},
+               list_nodes: {Nodes, :list_nodes, [[]]}
+             }
+           ]})
+
+          assert_receive {:connect, _}, 5_000
+        end)
+      end
+    end
+
+    test "works with no cached resources" do
+      use_cassette "kubernetes", custom: true do
+        capture_log(fn ->
+          start_supervised!({Kubernetes,
+           [
+             %Cluster.Strategy.State{
+               topology: :name,
+               config: [
+                 kubernetes_node_basename: "test_basename",
+                 kubernetes_selector: "app=test_selector",
+                 kubernetes_use_cached_resources: false,
+                 # If you want to run the test freshly, you'll need to create a DNS Entry
+                 kubernetes_master: "cluster.localhost.",
+                 kubernetes_service_account_path:
+                   Path.join([__DIR__, "fixtures", "kubernetes", "service_account"])
+               ],
+               connect: {Nodes, :connect, [self()]},
+               disconnect: {Nodes, :disconnect, [self()]},
+               list_nodes: {Nodes, :list_nodes, [[]]}
+             }
+           ]})
+
+          assert_receive {:connect, _}, 5_000
+        end)
+      end
+    end
+
     test "works with dns and cluster_name" do
       use_cassette "kubernetes", custom: true do
         capture_log(fn ->
@@ -187,6 +241,34 @@ defmodule Cluster.Strategy.KubernetesTest do
                  # If you want to run the test freshly, you'll need to create a DNS Entry
                  kubernetes_master: "cluster.localhost.",
                  kubernetes_ip_lookup_mode: :pods,
+                 kubernetes_service_account_path:
+                   Path.join([__DIR__, "fixtures", "kubernetes", "service_account"])
+               ],
+               connect: {Nodes, :connect, [self()]},
+               disconnect: {Nodes, :disconnect, [self()]},
+               list_nodes: {Nodes, :list_nodes, [[]]}
+             }
+           ]})
+
+          assert_receive {:connect, :"test_basename@10.48.33.136"}, 5_000
+        end)
+      end
+    end
+
+    test "works with pods and cached resources" do
+      use_cassette "kubernetes_pods", custom: true do
+        capture_log(fn ->
+          start_supervised!({Kubernetes,
+           [
+             %Cluster.Strategy.State{
+               topology: :name,
+               config: [
+                 kubernetes_node_basename: "test_basename",
+                 kubernetes_selector: "app=test_selector",
+                 # If you want to run the test freshly, you'll need to create a DNS Entry
+                 kubernetes_master: "cluster.localhost.",
+                 kubernetes_ip_lookup_mode: :pods,
+                 kubernetes_use_cached_resources: true,
                  kubernetes_service_account_path:
                    Path.join([__DIR__, "fixtures", "kubernetes", "service_account"])
                ],
