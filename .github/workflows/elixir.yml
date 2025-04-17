@@ -8,7 +8,7 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     env:
       MIX_ENV: test
     strategy:
@@ -16,10 +16,15 @@ jobs:
       matrix:
         include:
           - pair:
-              elixir: "1.13"
-              otp: "22"
+              elixir: "1.16"
+              otp: "26"
+            lint: lint
           - pair:
               elixir: "1.17"
+              otp: "27"
+            lint: lint
+          - pair:
+              elixir: "1.18"
               otp: "27"
             lint: lint
     steps:

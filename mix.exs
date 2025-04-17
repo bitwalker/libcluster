@@ -40,7 +40,7 @@ defmodule Cluster.Mixfile do
       {:ex_doc, ">= 0.0.0", only: :dev, runtime: false},
       {:dialyxir, "~> 1.0", only: :dev, runtime: false},
       {:exvcr, "~> 0.11", only: :test, runtime: false},
-      {:jason, "~> 1.1"},
+      {:jason, "~> 1.1", optional: true},
       {:telemetry, "~> 1.3"}
     ]
   end

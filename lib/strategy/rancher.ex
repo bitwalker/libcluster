@@ -139,7 +139,7 @@ defmodule Cluster.Strategy.Rancher do
                []
              ) do
           {:ok, {{_version, 200, _status}, _headers, body}} ->
-            parse_response(app_name, Jason.decode!(body))
+            parse_response(app_name, Cluster.JSON.decode!(body))
 
           {:ok, {{_version, code, status}, _headers, body}} ->
             warn(

@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Add `kubernetes_use_cached_resources` option to Kubernetes strategy
+* Use Elixir 1.18's built-in JSON module when available
 
 ## 3.4.1
 
