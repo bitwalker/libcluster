@@ -7,6 +7,8 @@ defmodule Cluster.Strategy.Kubernetes do
   This clustering strategy works by fetching information of endpoints or pods, which are filtered by
   given Kubernetes namespace and label.
 
+  > #### Note {: .info}
+  >
   > This strategy requires a service account with the ability to list endpoints or pods. If you want
   > to avoid that, you could use one of the DNS-based strategies instead.
   >
@@ -22,6 +24,7 @@ defmodule Cluster.Strategy.Kubernetes do
   + `<basename>` would be the value configured by `:kubernetes_node_basename` option.
   + `<ip_or_domain>` would be the value which is controlled by following options:
      - `:kubernetes_namespace`
+     - `:kubernetes_field_selector`
      - `:kubernetes_selector`
      - `:kubernetes_service_name`
      - `:kubernetes_ip_lookup_mode`
@@ -37,13 +40,32 @@ defmodule Cluster.Strategy.Kubernetes do
 
   ## Getting `<ip_or_domain>`
 
-  ### `:kubernetes_namespace` and `:kubernetes_selector` option
+  This strategy uses the Kubernetes API to fetch information about endpoints or pods. The
+  following options configure the API request and how the responses are used.
 
-  These two options configure how to filter required endpoints or pods.
+  ### `:kubernetes_namespace` option
+
+  This option is used to filter endpoints or pods by namespace. It is required in cases when the
+  namespace is not determined by the service account. If not provided, it defaults to the
+  namespace of the service account from `\#{config[:kubernetes_service_account_path]}/namespace`.
+
+  ### `:kubernetes_selector` option
+
+  This option is a **label selector** used to filter endpoints or pods by label. It is
+  **required** and should be provided in the format of a label selector, such as
+  `"app.kubernetes.io/name=my-app"`. For more information on label selectors, see the
+  [Kubernetes Documentation](https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#list-and-watch-filtering).
+
+  ### `:kubernetes_field_selector` option
+
+  This option is a **field selector** used to filter endpoints or pods by specific fields. It is
+  optional and can be used to filter pods by their status, such as `"status.phase=Running"`.
+  If not provided, no filters are applied. For more information on field selectors, see the
+  [Kubernetes Documentation](https://kubernetes.io/docs/concepts/overview/working-with-objects/field-selectors/).
 
   ### `:kubernetes_ip_lookup_mode` option
 
-  These option configures where to lookup the required IP.
+  This option configures where to lookup the required IP.
 
   Available values:
 
@@ -226,6 +248,7 @@ defmodule Cluster.Strategy.Kubernetes do
               mode: :ip,
               kubernetes_node_basename: "myapp",
               kubernetes_selector: "app=myapp",
+              kubernetes_field_selector: "status.phase=Running",
               kubernetes_namespace: "my_namespace",
               polling_interval: 10_000
             ]
@@ -365,7 +388,8 @@ defmodule Cluster.Strategy.Kubernetes do
     app_name = Keyword.fetch!(config, :kubernetes_node_basename)
     cluster_name = Keyword.get(config, :kubernetes_cluster_name, "cluster")
     service_name = Keyword.get(config, :kubernetes_service_name)
-    selector = Keyword.fetch!(config, :kubernetes_selector)
+    field_selector = Keyword.get(config, :kubernetes_field_selector)
+    label_selector = Keyword.fetch!(config, :kubernetes_selector)
     ip_lookup_mode = Keyword.get(config, :kubernetes_ip_lookup_mode, :endpoints)
 
     use_cache = Keyword.get(config, :kubernetes_use_cached_resources, false)
@@ -388,10 +412,11 @@ defmodule Cluster.Strategy.Kubernetes do
       end
 
     cond do
-      app_name != nil and selector != nil ->
+      app_name != nil and label_selector != nil ->
         query_params =
           []
-          |> apply_param(:labelSelector, selector)
+          |> apply_param(:fieldSelector, field_selector)
+          |> apply_param(:labelSelector, label_selector)
           |> apply_param(:resourceVersion, resource_version)
           |> URI.encode_query(:rfc3986)
 
@@ -442,7 +467,7 @@ defmodule Cluster.Strategy.Kubernetes do
 
         []
 
-      selector == nil ->
+      label_selector == nil ->
         warn(
           topology,
           "kubernetes strategy is selected, but :kubernetes_selector is not configured!"

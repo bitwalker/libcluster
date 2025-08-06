@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Add `kubernetes_use_cached_resources` option to Kubernetes strategy
+- Add `kubernetes_field_selector` option to `Cluster.Strategy.Kubernetes` to enable filtering by pod status
 
 ## 3.4.1
 
