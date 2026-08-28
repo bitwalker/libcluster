@@ -6,7 +6,7 @@ defmodule Cluster.Strategy.DNSPoll do
 
   ## Options
 
-  * `poll_interval` - How often to poll in milliseconds (optional; default: 5_000)
+  * `polling_interval` - How often to poll in milliseconds (optional; default: 5_000)
   * `query` - DNS query to use (required; e.g. "my-app.example.com")
   * `node_basename` - The short name of the nodes you wish to connect to (required; e.g. "my-app")
 
