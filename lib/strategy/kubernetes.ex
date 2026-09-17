@@ -409,7 +409,7 @@ defmodule Cluster.Strategy.Kubernetes do
 
         case :httpc.request(:get, {~c"https://#{master}/#{path}", headers}, http_options, []) do
           {:ok, {{_version, 200, _status}, _headers, body}} ->
-            parse_response(ip_lookup_mode, Jason.decode!(body))
+            parse_response(ip_lookup_mode, Jason.decode!(body), namespace)
             |> Enum.map(fn node_info ->
               format_node(
                 Keyword.get(config, :mode, :ip),
@@ -462,7 +462,7 @@ defmodule Cluster.Strategy.Kubernetes do
 
   defp apply_param(params, _key, _value), do: params
 
-  defp parse_response(:endpoints, resp) do
+  defp parse_response(:endpoints, resp, namespace) do
     case resp do
       %{"items" => items} when is_list(items) ->
         Enum.reduce(items, [], fn
@@ -470,9 +470,14 @@ defmodule Cluster.Strategy.Kubernetes do
             addrs =
               Enum.flat_map(subsets, fn
                 %{"addresses" => addresses} when is_list(addresses) ->
-                  Enum.map(addresses, fn %{"ip" => ip, "targetRef" => %{"namespace" => namespace}} =
-                                           address ->
-                    %{ip: ip, namespace: namespace, hostname: address["hostname"]}
+                  Enum.map(addresses, fn %{"ip" => ip} = address ->
+                    # targetRef is optional, and endpoints which are not backed by a pod
+                    # (manually managed ones, for example) do not have one
+                    %{
+                      ip: ip,
+                      namespace: get_in(address, ["targetRef", "namespace"]) || namespace,
+                      hostname: address["hostname"]
+                    }
                   end)
 
                 _ ->
@@ -490,7 +495,7 @@ defmodule Cluster.Strategy.Kubernetes do
     end
   end
 
-  defp parse_response(:pods, resp) do
+  defp parse_response(:pods, resp, _namespace) do
     case resp do
       %{"items" => items} when is_list(items) ->
         Enum.map(items, fn

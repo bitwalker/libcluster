@@ -283,6 +283,41 @@ defmodule Cluster.Strategy.KubernetesTest do
       end
     end
 
+    test "works with endpoints whose addresses have no targetRef" do
+      use_cassette "kubernetes_no_target_ref", custom: true do
+        capture_log(fn ->
+          start_supervised!({Kubernetes,
+           [
+             %Cluster.Strategy.State{
+               topology: :name,
+               config: [
+                 kubernetes_node_basename: "test_basename",
+                 kubernetes_selector: "app=test_selector",
+                 mode: :dns,
+                 # If you want to run the test freshly, you'll need to create a DNS Entry
+                 kubernetes_master: "cluster.localhost.",
+                 kubernetes_service_account_path:
+                   Path.join([__DIR__, "fixtures", "kubernetes", "service_account"])
+               ],
+               connect: {Nodes, :connect, [self()]},
+               disconnect: {Nodes, :disconnect, [self()]},
+               list_nodes: {Nodes, :list_nodes, [[]]}
+             }
+           ]})
+
+          # address with a targetRef keeps the namespace it points at
+          assert_receive {:connect,
+                          :"test_basename@10-48-33-136.airatel-service-localization.pod.cluster.local"},
+                         5_000
+
+          # address without a targetRef falls back to the queried namespace
+          assert_receive {:connect,
+                          :"test_basename@10-48-33-137.__libcluster_test.pod.cluster.local"},
+                         5_000
+        end)
+      end
+    end
+
     test "works with pods and dns" do
       use_cassette "kubernetes_pods", custom: true do
         capture_log(fn ->

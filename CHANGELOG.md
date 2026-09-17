@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Add `kubernetes_use_cached_resources` option to Kubernetes strategy
+- Fix Kubernetes strategy crash when an endpoints address has no `targetRef`
 
 ## 3.4.1
 
