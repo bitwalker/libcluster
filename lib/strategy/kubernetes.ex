@@ -216,6 +216,11 @@ defmodule Cluster.Strategy.Kubernetes do
 
   + `:kubernetes_service_account_path` - the default value is `#{@service_account_path}`
 
+  The service account directory must contain a readable `ca.crt` that trusts the Kubernetes API
+  server. TLS peer and hostname verification are always enabled. If the CA file is missing or
+  invalid, discovery fails without sending the bearer token, retains the last known membership,
+  and retries on the next poll. Restore the mounted CA file to resume discovery.
+
   ## An example configuration
 
       config :libcluster,
@@ -323,17 +328,7 @@ defmodule Cluster.Strategy.Kubernetes do
   @spec get_ssl_opts(Path.t()) :: Keyword.t()
   defp get_ssl_opts(service_account_path) do
     path = Path.join(service_account_path, "ca.crt")
-
-    case File.exists?(path) do
-      true ->
-        [
-          verify: :verify_peer,
-          cacertfile: String.to_charlist(path)
-        ]
-
-      false ->
-        [verify: :verify_none]
-    end
+    [verify: :verify_peer, cacertfile: String.to_charlist(path)]
   end
 
   @spec get_namespace(String.t(), String.t()) :: String.t()

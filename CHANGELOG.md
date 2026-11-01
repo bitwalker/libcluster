@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Always verify Kubernetes API TLS peers using the service-account CA. A missing or invalid
+  `ca.crt` now prevents discovery instead of sending credentials to an unverified server (#214).
 - Add `kubernetes_use_cached_resources` option to Kubernetes strategy
 
 ## 3.4.1

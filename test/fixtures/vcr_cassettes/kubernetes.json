@@ -9,7 +9,7 @@
       "options": {
         "httpc_options": [],
         "http_options": {
-          "ssl": "[verify: :verify_none]"
+          "ssl": "[verify: :verify_peer, cacertfile: \"SERVICE_ACCOUNT_PATH/ca.crt\"]"
         }
       },
       "request_body": "",
@@ -41,7 +41,7 @@
       "options": {
         "httpc_options": [],
         "http_options": {
-          "ssl": "[verify: :verify_none]"
+          "ssl": "[verify: :verify_peer, cacertfile: \"SERVICE_ACCOUNT_PATH/ca.crt\"]"
         }
       },
       "request_body": "",
@@ -73,7 +73,7 @@
       "options": {
         "httpc_options": [],
         "http_options": {
-          "ssl": "[verify: :verify_none]"
+          "ssl": "[verify: :verify_peer, cacertfile: \"SERVICE_ACCOUNT_PATH/ca.crt\"]"
         }
       },
       "request_body": "",
