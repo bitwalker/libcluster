@@ -85,3 +85,16 @@ Dependabot groups action updates weekly and checks Hex dependencies monthly, wit
 cooldown for routine updates. Review lockfile changes with those PRs. Workflow checks run for
 every PR, including documentation-only changes, so required checks are not left pending by
 path filters. Configure required checks only after successful hosted runs.
+
+## Preparing a release
+
+1. Choose the release commit and run the checks above. Require successful hosted CI on that
+   commit before publishing; local checks cannot establish runner installation or fork behavior.
+2. Check that `mix.exs` and `CHANGELOG.md` describe the same version and include compatibility
+   and security changes. Review the files and metadata in the archive produced by `mix hex.build`.
+3. Generate documentation and inspect its source links. The version string is also ExDoc's
+   `source_ref`, so the release needs a matching bare version tag, such as `3.5.1`.
+4. Use `jj` for source control. Review the tag target, package and release notes together before
+   the maintainer pushes or publishes anything. Keep local `tasks/` documents out of commits.
+5. After publication, verify the Hex version and package contents, documentation source links,
+   and GitHub tag/release agree. Do not invent historical tag targets from version bumps alone.
