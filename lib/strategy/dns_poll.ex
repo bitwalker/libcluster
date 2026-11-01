@@ -9,6 +9,16 @@ defmodule Cluster.Strategy.DNSPoll do
   * `polling_interval` - How often to poll in milliseconds (optional; default: 5_000)
   * `query` - DNS query to use (required; e.g. "my-app.example.com")
   * `node_basename` - The short name of the nodes you wish to connect to (required; e.g. "my-app")
+  * `prune` - Disconnect nodes absent from the latest DNS answer (optional; default: `true`)
+
+  By default, each DNS answer is treated as the complete membership list. Set `prune: false`
+  when DNS returns partial or rotating subsets so previously discovered peers stay connected.
+  Erlang distribution still detects lost connections; libcluster retries a disconnected peer
+  only when it appears in a subsequent DNS answer, without retaining an unbounded address history.
+
+  An empty answer removes previously discovered peers when pruning is enabled. The default
+  resolver also returns an empty list on lookup failure, so it cannot distinguish that failure
+  from an empty answer. With pruning disabled, neither triggers a discovery-driven disconnect.
 
   ## Usage
 
@@ -50,28 +60,16 @@ defmodule Cluster.Strategy.DNSPoll do
          %State{
            topology: topology,
            connect: connect,
-           disconnect: disconnect,
            list_nodes: list_nodes
          } = state
        ) do
     new_nodelist = state |> get_nodes() |> MapSet.new()
-    removed = MapSet.difference(state.meta, new_nodelist)
 
     new_nodelist =
-      case Strategy.disconnect_nodes(
-             topology,
-             disconnect,
-             list_nodes,
-             MapSet.to_list(removed)
-           ) do
-        :ok ->
-          new_nodelist
-
-        {:error, bad_nodes} ->
-          # Add back the nodes which should have been removed, but which couldn't be for some reason
-          Enum.reduce(bad_nodes, new_nodelist, fn {n, _}, acc ->
-            MapSet.put(acc, n)
-          end)
+      if Keyword.get(state.config, :prune, true) do
+        prune_nodes(state, new_nodelist)
+      else
+        new_nodelist
       end
 
     new_nodelist =
@@ -94,6 +92,27 @@ defmodule Cluster.Strategy.DNSPoll do
     Process.send_after(self(), :poll, polling_interval(state))
 
     %{state | :meta => new_nodelist}
+  end
+
+  defp prune_nodes(
+         %State{
+           topology: topology,
+           disconnect: disconnect,
+           list_nodes: list_nodes,
+           meta: previous_nodes
+         },
+         new_nodelist
+       ) do
+    removed = MapSet.difference(previous_nodes, new_nodelist)
+
+    case Strategy.disconnect_nodes(topology, disconnect, list_nodes, MapSet.to_list(removed)) do
+      :ok ->
+        new_nodelist
+
+      {:error, bad_nodes} ->
+        # Retain failed removals so subsequent polls retry them.
+        Enum.reduce(bad_nodes, new_nodelist, fn {node, _}, acc -> MapSet.put(acc, node) end)
+    end
   end
 
   defp polling_interval(%{config: config}) do

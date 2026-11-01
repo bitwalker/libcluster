@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Add `prune: false` to DNSPoll to keep peers connected when DNS returns rotating or partial
+  answers. Pruning remains enabled by default (#190, #196).
+
 ## 3.5.1
 
 - Always verify Kubernetes API TLS peers using the service-account CA. A missing or invalid
