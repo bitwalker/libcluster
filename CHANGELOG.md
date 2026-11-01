@@ -4,6 +4,8 @@
 
 - Always verify Kubernetes API TLS peers using the service-account CA. A missing or invalid
   `ca.crt` now prevents discovery instead of sending credentials to an unverified server (#214).
+- Accept Kubernetes endpoint addresses without an optional `targetRef`, using the endpoint or
+  requested namespace when needed; skip addresses without a usable hostname in hostname mode.
 - Add `kubernetes_use_cached_resources` option to Kubernetes strategy
 
 ## 3.4.1

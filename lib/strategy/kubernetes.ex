@@ -404,7 +404,7 @@ defmodule Cluster.Strategy.Kubernetes do
 
         case :httpc.request(:get, {~c"https://#{master}/#{path}", headers}, http_options, []) do
           {:ok, {{_version, 200, _status}, _headers, body}} ->
-            parse_response(ip_lookup_mode, Jason.decode!(body))
+            parse_response(ip_lookup_mode, Jason.decode!(body), namespace)
             |> Enum.map(fn node_info ->
               format_node(
                 Keyword.get(config, :mode, :ip),
@@ -414,6 +414,7 @@ defmodule Cluster.Strategy.Kubernetes do
                 service_name
               )
             end)
+            |> Enum.reject(&is_nil/1)
 
           {:ok, {{_version, 403, _status}, _headers, body}} ->
             %{"message" => msg} = Jason.decode!(body)
@@ -457,16 +458,18 @@ defmodule Cluster.Strategy.Kubernetes do
 
   defp apply_param(params, _key, _value), do: params
 
-  defp parse_response(:endpoints, resp) do
+  defp parse_response(:endpoints, resp, namespace) do
     case resp do
       %{"items" => items} when is_list(items) ->
         Enum.reduce(items, [], fn
-          %{"subsets" => subsets}, acc when is_list(subsets) ->
+          %{"subsets" => subsets} = endpoint, acc when is_list(subsets) ->
+            endpoint_namespace = get_in(endpoint, ["metadata", "namespace"]) || namespace
+
             addrs =
               Enum.flat_map(subsets, fn
                 %{"addresses" => addresses} when is_list(addresses) ->
-                  Enum.map(addresses, fn %{"ip" => ip, "targetRef" => %{"namespace" => namespace}} =
-                                           address ->
+                  Enum.map(addresses, fn %{"ip" => ip} = address ->
+                    namespace = get_in(address, ["targetRef", "namespace"]) || endpoint_namespace
                     %{ip: ip, namespace: namespace, hostname: address["hostname"]}
                   end)
 
@@ -485,7 +488,7 @@ defmodule Cluster.Strategy.Kubernetes do
     end
   end
 
-  defp parse_response(:pods, resp) do
+  defp parse_response(:pods, resp, _namespace) do
     case resp do
       %{"items" => items} when is_list(items) ->
         Enum.map(items, fn
@@ -515,9 +518,13 @@ defmodule Cluster.Strategy.Kubernetes do
          app_name,
          cluster_name,
          service_name
-       ) do
+       )
+       when is_binary(hostname) and hostname != "" and is_binary(service_name) and
+              service_name != "" do
     :"#{app_name}@#{hostname}.#{service_name}.#{namespace}.svc.#{cluster_name}.local"
   end
+
+  defp format_node(:hostname, _node_info, _app_name, _cluster_name, _service_name), do: nil
 
   defp format_node(:dns, %{ip: ip, namespace: namespace}, app_name, cluster_name, _service_name) do
     ip = String.replace(ip, ".", "-")
