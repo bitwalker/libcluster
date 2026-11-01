@@ -4,13 +4,14 @@ defmodule Cluster.Strategy.Kubernetes do
   @service_account_path "/var/run/secrets/kubernetes.io/serviceaccount"
 
   @moduledoc """
-  This clustering strategy works by fetching information of endpoints or pods, which are filtered by
+  This clustering strategy works by fetching endpoints, pods, or EndpointSlices, filtered by
   given Kubernetes namespace and label.
 
   > This strategy requires a service account with the ability to list endpoints or pods. If you want
   > to avoid that, you could use one of the DNS-based strategies instead.
   >
   > See `Cluster.Strategy.Kubernetes.DNS` and `Cluster.Strategy.Kubernetes.DNSSRV`.
+  > EndpointSlice lookup needs `list` permission for `discovery.k8s.io/endpointslices` instead.
 
   It assumes that all Erlang nodes are using longnames - `<basename>@<ip_or_domain>`:
 
@@ -39,7 +40,8 @@ defmodule Cluster.Strategy.Kubernetes do
 
   ### `:kubernetes_namespace` and `:kubernetes_selector` option
 
-  These two options configure how to filter required endpoints or pods.
+  These options select a namespace and a label selector on the resource being queried.
+  Labels on Pods or legacy Endpoints are not automatically usable as EndpointSlice selectors.
 
   ### `:kubernetes_ip_lookup_mode` option
 
@@ -49,6 +51,7 @@ defmodule Cluster.Strategy.Kubernetes do
 
   + `:endpoints` (default)
   + `:pods`
+  + `:endpoint_slices`
 
   #### :endpoints
 
@@ -74,11 +77,45 @@ defmodule Cluster.Strategy.Kubernetes do
   Other pods remain discoverable even when they are not Ready, so applications can make
   readiness depend on cluster formation without blocking discovery.
 
+  #### :endpoint_slices
+
+  This opt-in mode uses `discovery.k8s.io/v1`, available since Kubernetes 1.21. It lists all
+  matching EndpointSlices and combines their IPv4 and IPv6 addresses, removing duplicates.
+  FQDN address types are not supported. An endpoint is eligible unless `ready` is explicitly
+  `false` or `terminating` is explicitly `true`; missing conditions use the API defaults.
+  `serving` does not override these rules. Services that publish not-ready addresses can still
+  support discovery before application readiness, but terminating endpoints are excluded.
+
+  Select slices explicitly by their labels, typically the Service association:
+
+      kubernetes_ip_lookup_mode: :endpoint_slices,
+      kubernetes_namespace: "default",
+      kubernetes_selector: "kubernetes.io/service-name=myapp",
+      kubernetes_node_basename: "myapp"
+
+  `:kubernetes_service_name` retains its hostname-formatting role; it does not add a discovery
+  filter. When migrating, replace an old selector such as `app=myapp` if that label is not
+  present on the slices. Verify selection with:
+
+      kubectl get endpointslices -n default -l kubernetes.io/service-name=myapp
+
+  Grant the service account namespace-scoped `list` permission using the
+  [example Role](https://github.com/bitwalker/libcluster/blob/main/priv/endpointslice-viewer.yaml)
+  and bind it with a RoleBinding. No legacy Endpoints, Pod,
+  `get`, or `watch` permission is needed for this mode. The existing lookup modes and default
+  remain available; a permission error never triggers a fallback to another resource.
+
+  Lists request pages of up to 500 slices. All pages must succeed before membership changes;
+  HTTP errors (including authorization or expired continuation), transport failures and invalid
+  responses retain the previous membership until a fresh list on the next poll. A successful
+  empty list removes previous members. This mode polls; it does not watch the API.
+
   ### `kubernetes_use_cached_resources` option
 
-  When setting this value, this strategy will use cached resource version value to fetch k8s resources.
-  In k8s resources are incremented by 1 on every change, this version will set requested resourceVersion
-  to 0, that will use cached versions of resources, take in mind that this may be outdated or unavailable.
+  This option requests `resourceVersion=0`, allowing a cached response that may be stale.
+  Kubernetes resource versions are opaque identifiers, not counters. EndpointSlice continuation
+  requests omit resourceVersion to follow the server's snapshot token. Older API servers may
+  ignore page limits when the initial request uses resourceVersion=0.
 
   ### `:mode` option
 
@@ -175,6 +212,12 @@ defmodule Cluster.Strategy.Kubernetes do
       export RELEASE_DISTRIBUTION=name
       export RELEASE_NODE=<%= @release.name %>@${POD_A_RECORD}.${NAMESPACE}.pod.${CLUSTER_DOMAIN}
 
+  IP-derived Pod DNS names require support from your cluster DNS configuration. CoreDNS needs
+  `pods insecure` or `pods verified`; Pod records are disabled by default. IPv6 formatting
+  replaces colons with hyphens, preserving compression (`2001:db8::1` becomes `2001-db8--1`).
+  Older CoreDNS verified implementations recognize only a Pod's primary IP, so secondary
+  dual-stack addresses may not resolve. Check your DNS implementation before using this mode.
+
   ### Which mode is the best one?
 
   There is no best, only the best for you:
@@ -201,6 +244,8 @@ defmodule Cluster.Strategy.Kubernetes do
   `notReadyAddresses`. Removal therefore depends on the controller or operator updating the
   Endpoints resource. In `:pods` mode, a deletion timestamp or terminal phase removes a pod;
   changing readiness alone does not remove it.
+  EndpointSlice discovery additionally excludes explicit terminating conditions, even when a
+  Service's `publishNotReadyAddresses` setting makes the endpoint appear ready.
 
   For graceful shutdown, stop accepting new work and withdraw application readiness, allow time
   for the discovery resource to stop advertising the peer and for another poll, then drain
@@ -263,6 +308,7 @@ defmodule Cluster.Strategy.Kubernetes do
   import Cluster.Logger
 
   alias Cluster.Strategy.State
+  alias Cluster.Strategy.Kubernetes.EndpointSlice
 
   def start_link(args), do: GenServer.start_link(__MODULE__, args)
 
@@ -379,7 +425,6 @@ defmodule Cluster.Strategy.Kubernetes do
     namespace = get_namespace(service_account_path, Keyword.get(config, :kubernetes_namespace))
     app_name = Keyword.fetch!(config, :kubernetes_node_basename)
     cluster_name = Keyword.get(config, :kubernetes_cluster_name, "cluster")
-    service_name = Keyword.get(config, :kubernetes_service_name)
     selector = Keyword.fetch!(config, :kubernetes_selector)
     ip_lookup_mode = Keyword.get(config, :kubernetes_ip_lookup_mode, :endpoints)
 
@@ -408,46 +453,53 @@ defmodule Cluster.Strategy.Kubernetes do
           []
           |> apply_param(:labelSelector, selector)
           |> apply_param(:resourceVersion, resource_version)
-          |> URI.encode_query(:rfc3986)
 
         path =
           case ip_lookup_mode do
             :endpoints ->
-              "api/v1/namespaces/#{namespace}/endpoints?#{query_params}"
+              "api/v1/namespaces/#{namespace}/endpoints"
 
             :pods ->
-              "api/v1/namespaces/#{namespace}/pods?#{query_params}"
+              "api/v1/namespaces/#{namespace}/pods"
+
+            :endpoint_slices ->
+              "apis/discovery.k8s.io/v1/namespaces/#{namespace}/endpointslices"
           end
 
         headers = [{~c"authorization", ~c"Bearer #{token}"}]
         http_options = [ssl: ssl_opts, timeout: 15000]
+        url = "https://#{master}/#{path}"
 
-        case :httpc.request(:get, {~c"https://#{master}/#{path}", headers}, http_options, []) do
-          {:ok, {{_version, 200, _status}, _headers, body}} ->
-            parse_response(ip_lookup_mode, Jason.decode!(body), namespace)
-            |> Enum.map(fn node_info ->
-              format_node(
-                Keyword.get(config, :mode, :ip),
-                node_info,
-                app_name,
-                cluster_name,
-                service_name
-              )
-            end)
-            |> Enum.reject(&is_nil/1)
+        if ip_lookup_mode == :endpoint_slices do
+          case EndpointSlice.list(url, headers, http_options, query_params, namespace) do
+            {:ok, nodes} ->
+              format_nodes(nodes, config)
 
-          {:ok, {{_version, 403, _status}, _headers, body}} ->
-            %{"message" => msg} = Jason.decode!(body)
-            warn(topology, "cannot query kubernetes (unauthorized): #{msg}")
-            []
+            {:error, reason} ->
+              error(topology, "cannot list kubernetes EndpointSlices: #{inspect(reason)}")
+              meta
+          end
+        else
+          query = URI.encode_query(query_params, :rfc3986)
 
-          {:ok, {{_version, code, status}, _headers, body}} ->
-            warn(topology, "cannot query kubernetes (#{code} #{status}): #{inspect(body)}")
-            meta
+          case :httpc.request(:get, {~c"#{url}?#{query}", headers}, http_options, []) do
+            {:ok, {{_version, 200, _status}, _headers, body}} ->
+              parse_response(ip_lookup_mode, Jason.decode!(body), namespace)
+              |> format_nodes(config)
 
-          {:error, reason} ->
-            error(topology, "request to kubernetes failed!: #{inspect(reason)}")
-            meta
+            {:ok, {{_version, 403, _status}, _headers, body}} ->
+              %{"message" => msg} = Jason.decode!(body)
+              warn(topology, "cannot query kubernetes (unauthorized): #{msg}")
+              []
+
+            {:ok, {{_version, code, status}, _headers, body}} ->
+              warn(topology, "cannot query kubernetes (#{code} #{status}): #{inspect(body)}")
+              meta
+
+            {:error, reason} ->
+              error(topology, "request to kubernetes failed!: #{inspect(reason)}")
+              meta
+          end
         end
 
       app_name == nil ->
@@ -535,6 +587,17 @@ defmodule Cluster.Strategy.Kubernetes do
     end
   end
 
+  defp format_nodes(nodes, config) do
+    mode = Keyword.get(config, :mode, :ip)
+    app_name = Keyword.fetch!(config, :kubernetes_node_basename)
+    cluster_name = Keyword.get(config, :kubernetes_cluster_name, "cluster")
+    service_name = Keyword.get(config, :kubernetes_service_name)
+
+    nodes
+    |> Enum.map(&format_node(mode, &1, app_name, cluster_name, service_name))
+    |> Enum.reject(&is_nil/1)
+  end
+
   defp format_node(:ip, %{ip: ip}, app_name, _cluster_name, _service_name),
     do: :"#{app_name}@#{ip}"
 
@@ -553,7 +616,7 @@ defmodule Cluster.Strategy.Kubernetes do
   defp format_node(:hostname, _node_info, _app_name, _cluster_name, _service_name), do: nil
 
   defp format_node(:dns, %{ip: ip, namespace: namespace}, app_name, cluster_name, _service_name) do
-    ip = String.replace(ip, ".", "-")
+    ip = String.replace(ip, [".", ":"], "-")
     :"#{app_name}@#{ip}.#{namespace}.pod.#{cluster_name}.local"
   end
 end

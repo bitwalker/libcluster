@@ -6,6 +6,9 @@
   answers. Pruning remains enabled by default (#190, #196).
 - Exclude deleting and terminal pods, and pods without a usable IP, from Kubernetes pods-mode
   discovery. Live not-ready pods remain discoverable; document polling and shutdown behavior.
+- Add opt-in Kubernetes EndpointSlice discovery with explicit label selection, complete paginated
+  snapshots, IPv4/IPv6 support, readiness/termination filtering and a least-privilege Role example
+  (#213). Failed or incomplete lists preserve membership; legacy lookup modes remain available.
 
 ## 3.5.1
 
