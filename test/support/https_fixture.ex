@@ -76,10 +76,11 @@ defmodule Cluster.HTTPSFixture do
         with {:ok, socket} <- :ssl.handshake(socket, 5_000),
              {:ok, request} <- receive_headers(socket, "") do
           send(owner, {:tls_request, request})
+          response_body = if is_function(body, 0), do: body.(), else: body
 
           :ssl.send(socket, [
-            "HTTP/1.1 #{status} Fixture\r\nContent-Length: #{byte_size(body)}\r\nConnection: close\r\n\r\n",
-            body
+            "HTTP/1.1 #{status} Fixture\r\nContent-Length: #{byte_size(response_body)}\r\nConnection: close\r\n\r\n",
+            response_body
           ])
         end
 

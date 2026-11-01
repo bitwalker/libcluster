@@ -69,7 +69,10 @@ defmodule Cluster.Strategy.Kubernetes do
 
       kubectl get pods -l app=myapp
 
-  Then, this strategy will fetch the IP of all pods with that label and attempt to connect.
+  This strategy attempts to connect pods with that label and a nonempty pod IP, excluding pods
+  with a non-null `metadata.deletionTimestamp` or a terminal phase (`Succeeded` or `Failed`).
+  Other pods remain discoverable even when they are not Ready, so applications can make
+  readiness depend on cluster formation without blocking discovery.
 
   ### `kubernetes_use_cached_resources` option
 
@@ -187,6 +190,23 @@ defmodule Cluster.Strategy.Kubernetes do
 
   The default interval to sync topologies is `#{@default_polling_interval}`
   (#{div(@default_polling_interval, 1000)} seconds). You can configure it with `:polling_interval` option.
+
+  ## Membership during shutdown
+
+  Changes to discovered membership take effect on the next successful poll that observes them.
+  API/controller updates and cached responses can add delay; failed disconnections are retried
+  on subsequent polls.
+
+  In `:endpoints` mode, discovery uses the API's ready `addresses` and ignores
+  `notReadyAddresses`. Removal therefore depends on the controller or operator updating the
+  Endpoints resource. In `:pods` mode, a deletion timestamp or terminal phase removes a pod;
+  changing readiness alone does not remove it.
+
+  For graceful shutdown, stop accepting new work and withdraw application readiness, allow time
+  for the discovery resource to stop advertising the peer and for another poll, then drain
+  existing work before stopping the BEAM. Set the pod's termination grace period accordingly.
+  Cluster membership does not migrate in-flight work, and transitive Erlang distribution
+  connections can reconnect a peer independently of this strategy.
 
   ## Getting cluster information
 
@@ -491,18 +511,24 @@ defmodule Cluster.Strategy.Kubernetes do
   defp parse_response(:pods, resp, _namespace) do
     case resp do
       %{"items" => items} when is_list(items) ->
-        Enum.map(items, fn
+        Enum.flat_map(items, fn
+          %{"metadata" => %{"deletionTimestamp" => timestamp}} when not is_nil(timestamp) ->
+            []
+
+          %{"status" => %{"phase" => phase}} when phase in ["Succeeded", "Failed"] ->
+            []
+
           %{
             "status" => %{"podIP" => ip},
             "metadata" => %{"namespace" => ns},
             "spec" => pod_spec
-          } ->
-            %{ip: ip, namespace: ns, hostname: pod_spec["hostname"]}
+          }
+          when is_binary(ip) and ip != "" ->
+            [%{ip: ip, namespace: ns, hostname: pod_spec["hostname"]}]
 
           _ ->
-            nil
+            []
         end)
-        |> Enum.filter(&(&1 != nil))
 
       _ ->
         []
