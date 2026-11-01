@@ -1,60 +1,96 @@
-name: elixir
+name: Elixir
 
 on:
   pull_request:
   push:
     branches:
       - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   test:
-    runs-on: ubuntu-20.04
+    name: Elixir ${{ matrix.elixir }} / OTP ${{ matrix.otp }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
     env:
       MIX_ENV: test
     strategy:
       fail-fast: false
       matrix:
         include:
-          - pair:
-              elixir: "1.13"
-              otp: "22"
-          - pair:
-              elixir: "1.17"
-              otp: "27"
-            lint: lint
+          - elixir: "1.13.4"
+            otp: "24.3.4.17"
+            rebar: "3.21.0"
+          - elixir: "1.17.3"
+            otp: "27.3.4.19"
+            rebar: "3.28.0"
+          - elixir: "1.20.5"
+            otp: "29.1.2"
+            rebar: "3.28.0"
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: erlef/setup-beam@v1
+      - uses: actions/checkout@v7.0.1
         with:
-          otp-version: ${{matrix.pair.otp}}
-          elixir-version: ${{matrix.pair.elixir}}
+          persist-credentials: false
 
-      - uses: actions/cache@v4
+      - uses: erlef/setup-beam@v1.24.1
+        id: beam
         with:
-          path: |
-            deps
-            _build
-          key: ${{ runner.os }}-mix-${{matrix.pair.elixir}}-${{matrix.pair.otp}}-${{ hashFiles('**/mix.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-mix-${{matrix.pair.elixir}}-${{matrix.pair.otp}}-
+          otp-version: ${{ matrix.otp }}
+          elixir-version: ${{ matrix.elixir }}
+          rebar3-version: ${{ matrix.rebar }}
+          version-type: strict
+          install-hex: false
+          install-rebar: false
+
+      - name: Install Hex and select Rebar for Mix
+        run: |
+          mix local.hex 2.6.0 --force
+          echo "MIX_REBAR3=$(command -v rebar3)" >> "$GITHUB_ENV"
+
+      - uses: actions/cache@v6.1.0
+        with:
+          path: deps
+          key: ubuntu-24.04-${{ runner.arch }}-mix-test-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}-${{ hashFiles('mix.lock') }}
 
       - run: mix deps.get --only test
 
-      - run: mix format --check-formatted
-        if: ${{ matrix.lint }}
-
-      - run: mix deps.get && mix deps.unlock --check-unused
-        if: ${{ matrix.lint }}
-
       - run: mix deps.compile
+      - run: mix compile --warnings-as-errors
+      - run: mix test --warnings-as-errors
 
-      # TODO: disable for now due to upstream error with ExVCR
-      # warning: redefining module ExVCR.Adapter.Httpc.Converter (current
-      # version loaded from
-      # _build/test/lib/exvcr/ebin/Elixir.ExVCR.Adapter.Httpc.Converter.beam)
-
-      # - run: mix compile --warnings-as-errors
-      #   if: ${{ matrix.lint }}
-
-      - run: mix test
+  quality:
+    name: Formatting, package and dependency checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: erlef/setup-beam@v1.24.1
+        with:
+          otp-version: "29.1.2"
+          elixir-version: "1.20.5"
+          rebar3-version: "3.28.0"
+          version-type: strict
+          install-hex: false
+          install-rebar: false
+      - name: Install Hex and select Rebar for Mix
+        run: |
+          mix local.hex 2.6.0 --force
+          echo "MIX_REBAR3=$(command -v rebar3)" >> "$GITHUB_ENV"
+      - run: mix deps.get --check-locked
+      - run: mix deps.unlock --check-unused
+      - run: mix hex.audit
+      - run: mix format --check-formatted
+      - run: mix compile --warnings-as-errors
+        env:
+          MIX_ENV: prod
+      - run: mix docs --warnings-as-errors
+      - run: mix hex.build

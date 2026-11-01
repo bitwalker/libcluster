@@ -1,0 +1,5 @@
+rules:
+  unpinned-uses:
+    # Every workflow is onboarded to GitHub's runner-enforced actions.lock.
+    # automation.yml also verifies its coverage and pinned dependency reachability.
+    disable: true
