@@ -8,8 +8,6 @@ defmodule Cluster.Strategy.KubernetesSRVDNSTest do
   alias Cluster.Strategy.State
   alias Cluster.Nodes
 
-  require Cluster.Nodes
-
   describe "start_link/1" do
     test "adds new nodes" do
       capture_log(fn ->

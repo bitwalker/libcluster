@@ -7,8 +7,6 @@ defmodule Cluster.StrategyTest do
   alias Cluster.Nodes
   alias Cluster.Telemetry
 
-  require Cluster.Nodes
-
   import ExUnit.CaptureLog
 
   describe "connect_nodes/4" do

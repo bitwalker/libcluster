@@ -8,8 +8,6 @@ defmodule Cluster.Strategy.GossipTest do
 
   import ExUnit.CaptureLog
 
-  require Cluster.Nodes
-
   describe "start_link/1" do
     @tag capture_log: true
     test "continues discovering peers after malformed datagrams" do

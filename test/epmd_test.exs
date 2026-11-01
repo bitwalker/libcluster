@@ -5,8 +5,6 @@ defmodule Cluster.Strategy.EpmdTest do
 
   alias Cluster.Strategy.Epmd
 
-  require Cluster.Nodes
-
   describe "start_link/1" do
     @tag capture_log: true
     test "starts GenServer and connects nodes" do
