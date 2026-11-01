@@ -9,6 +9,10 @@
 - Add opt-in Kubernetes EndpointSlice discovery with explicit label selection, complete paginated
   snapshots, IPv4/IPv6 support, readiness/termination filtering and a least-privilege Role example
   (#213). Failed or incomplete lists preserve membership; legacy lookup modes remain available.
+- Add optional `kubernetes_trusted_peer_cert_file` for explicitly trusted self-signed Kubernetes
+  API server certificates (#200). Peer mode verifies complete certificate identity, hostname,
+  validity, signature and certificate constraints, supports overlapping certificates for rotation,
+  and replaces CA trust only when configured. Default service-account CA verification is unchanged.
 
 ## 3.5.1
 

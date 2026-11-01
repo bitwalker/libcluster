@@ -281,10 +281,40 @@ defmodule Cluster.Strategy.Kubernetes do
 
   + `:kubernetes_service_account_path` - the default value is `#{@service_account_path}`
 
-  The service account directory must contain a readable `ca.crt` that trusts the Kubernetes API
-  server. TLS peer and hostname verification are always enabled. If the CA file is missing or
-  invalid, discovery fails without sending the bearer token, retains the last known membership,
-  and retries on the next poll. Restore the mounted CA file to resume discovery.
+  By default, the service account directory must contain a readable `ca.crt` that trusts the
+  Kubernetes API server. TLS peer and hostname verification are always enabled. If the CA file
+  is missing or invalid, discovery fails without sending the bearer token, retains the last
+  known membership, and retries on the next poll. Restore the mounted CA file to resume discovery.
+
+  ### Explicitly trusted self-signed servers
+
+  For an API server that presents a self-signed server certificate, configure a separate PEM file:
+
+      kubernetes_trusted_peer_cert_file: "/var/run/secrets/kubernetes-api/peers.pem"
+
+  This optional setting selects trust in the complete server certificates listed in that file.
+  When set, the service-account `ca.crt` is not used and there is no fallback to CA trust. When
+  unset or `nil`, the default CA verification above applies. A self-signed CA that issues a
+  separate server certificate belongs in `ca.crt`; it does not need this setting.
+
+  The peer file must contain one or more PEM `CERTIFICATE` entries, with no private keys or
+  invalid certificate entries. Only a listed self-signed certificate can authenticate the server;
+  another certificate with the same public key is not sufficient. Its signature, validity dates,
+  hostname or IP address, and critical extensions are checked. Extended key usage, when present,
+  must permit `serverAuth`; key usage, when present, must permit `digitalSignature`. Certificates
+  restricted to static RSA key encipherment are not supported in this mode. Configure the API
+  hostname/IP that the certificate identifies; the port is not part of that identity.
+
+  Obtain peer certificates through a trusted channel and mount the file read-only. The file is
+  reloaded on each poll. For rotation, atomically replace it with a bundle containing both the
+  old and new certificates, rotate the server, then remove the old certificate. A listed expired
+  certificate does not prevent another listed valid certificate from working. EndpointSlice
+  pagination uses the trust bundle loaded at the start of that poll.
+
+  Missing, empty, unreadable or invalid peer files fail discovery before credentials are sent,
+  preserve membership, and recover when the file is repaired. Peer mode opens a fresh TLS
+  connection for every request and disables session resumption, so later polls cannot reuse
+  removed trust. Redirects are not followed in this mode; configure the API's final address.
 
   ## An example configuration
 
@@ -309,6 +339,7 @@ defmodule Cluster.Strategy.Kubernetes do
 
   alias Cluster.Strategy.State
   alias Cluster.Strategy.Kubernetes.EndpointSlice
+  alias Cluster.Strategy.Kubernetes.TLS
 
   def start_link(args), do: GenServer.start_link(__MODULE__, args)
 
@@ -391,12 +422,6 @@ defmodule Cluster.Strategy.Kubernetes do
     end
   end
 
-  @spec get_ssl_opts(Path.t()) :: Keyword.t()
-  defp get_ssl_opts(service_account_path) do
-    path = Path.join(service_account_path, "ca.crt")
-    [verify: :verify_peer, cacertfile: String.to_charlist(path)]
-  end
-
   @spec get_namespace(String.t(), String.t()) :: String.t()
   if Mix.env() == :test do
     defp get_namespace(_service_account_path, nil), do: "__libcluster_test"
@@ -415,22 +440,11 @@ defmodule Cluster.Strategy.Kubernetes do
   defp get_namespace(_, namespace), do: namespace
 
   @spec get_nodes(State.t()) :: [atom()]
-  defp get_nodes(%State{topology: topology, config: config, meta: meta}) do
+  defp get_nodes(%State{topology: topology, config: config, meta: meta} = state) do
     service_account_path =
       Keyword.get(config, :kubernetes_service_account_path, @service_account_path)
 
-    token = get_token(service_account_path)
-    ssl_opts = get_ssl_opts(service_account_path)
-
-    namespace = get_namespace(service_account_path, Keyword.get(config, :kubernetes_namespace))
-    app_name = Keyword.fetch!(config, :kubernetes_node_basename)
     cluster_name = Keyword.get(config, :kubernetes_cluster_name, "cluster")
-    selector = Keyword.fetch!(config, :kubernetes_selector)
-    ip_lookup_mode = Keyword.get(config, :kubernetes_ip_lookup_mode, :endpoints)
-
-    use_cache = Keyword.get(config, :kubernetes_use_cached_resources, false)
-    resource_version = if use_cache, do: 0, else: nil
-
     master_name = Keyword.get(config, :kubernetes_master, @kubernetes_master)
     cluster_domain = System.get_env("CLUSTER_DOMAIN", "#{cluster_name}.local")
 
@@ -446,6 +460,34 @@ defmodule Cluster.Strategy.Kubernetes do
         :else ->
           master_name <> "." <> cluster_domain
       end
+
+    url = "https://#{master}"
+    peer_file = Keyword.get(config, :kubernetes_trusted_peer_cert_file)
+
+    case TLS.options(service_account_path, peer_file, url) do
+      {:ok, http_options, request_options} ->
+        get_nodes(state, service_account_path, url, http_options, request_options)
+
+      {:error, reason} ->
+        error(topology, "cannot configure kubernetes TLS trust: #{inspect(reason)}")
+        meta
+    end
+  end
+
+  defp get_nodes(
+         %State{topology: topology, config: config, meta: meta},
+         service_account_path,
+         base_url,
+         http_options,
+         request_options
+       ) do
+    token = get_token(service_account_path)
+    namespace = get_namespace(service_account_path, Keyword.get(config, :kubernetes_namespace))
+    app_name = Keyword.fetch!(config, :kubernetes_node_basename)
+    selector = Keyword.fetch!(config, :kubernetes_selector)
+    ip_lookup_mode = Keyword.get(config, :kubernetes_ip_lookup_mode, :endpoints)
+    use_cache = Keyword.get(config, :kubernetes_use_cached_resources, false)
+    resource_version = if use_cache, do: 0, else: nil
 
     cond do
       app_name != nil and selector != nil ->
@@ -467,11 +509,17 @@ defmodule Cluster.Strategy.Kubernetes do
           end
 
         headers = [{~c"authorization", ~c"Bearer #{token}"}]
-        http_options = [ssl: ssl_opts, timeout: 15000]
-        url = "https://#{master}/#{path}"
+        url = "#{base_url}/#{path}"
 
         if ip_lookup_mode == :endpoint_slices do
-          case EndpointSlice.list(url, headers, http_options, query_params, namespace) do
+          case EndpointSlice.list(
+                 url,
+                 headers,
+                 http_options,
+                 request_options,
+                 query_params,
+                 namespace
+               ) do
             {:ok, nodes} ->
               format_nodes(nodes, config)
 
@@ -482,7 +530,7 @@ defmodule Cluster.Strategy.Kubernetes do
         else
           query = URI.encode_query(query_params, :rfc3986)
 
-          case :httpc.request(:get, {~c"#{url}?#{query}", headers}, http_options, []) do
+          case :httpc.request(:get, {~c"#{url}?#{query}", headers}, http_options, request_options) do
             {:ok, {{_version, 200, _status}, _headers, body}} ->
               parse_response(ip_lookup_mode, Jason.decode!(body), namespace)
               |> format_nodes(config)

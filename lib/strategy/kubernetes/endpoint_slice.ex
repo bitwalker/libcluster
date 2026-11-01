@@ -1,8 +1,8 @@
 defmodule Cluster.Strategy.Kubernetes.EndpointSlice do
   @moduledoc false
 
-  def list(url, headers, http_options, params, namespace) do
-    request = {url, headers, http_options}
+  def list(url, headers, http_options, request_options, params, namespace) do
+    request = {url, headers, http_options, request_options}
 
     with {:ok, slices} <- list_pages(request, Keyword.put(params, :limit, 500), [], MapSet.new()) do
       normalize(slices, namespace)
@@ -31,10 +31,10 @@ defmodule Cluster.Strategy.Kubernetes.EndpointSlice do
     end
   end
 
-  defp request_page({url, headers, http_options}, params) do
+  defp request_page({url, headers, http_options, request_options}, params) do
     query = URI.encode_query(params, :rfc3986)
 
-    case :httpc.request(:get, {~c"#{url}?#{query}", headers}, http_options, []) do
+    case :httpc.request(:get, {~c"#{url}?#{query}", headers}, http_options, request_options) do
       {:ok, {{_version, 200, _status}, _headers, body}} ->
         decode_page(body)
 
