@@ -17,6 +17,11 @@ defmodule Cluster.Strategy.Gossip do
   This can also be used to run multiple clusters with the same multicast configuration,
   as nodes not sharing the same encryption key will not be connected.
 
+  Gossip is intended for trusted networks. Encryption does not authenticate the discovery
+  protocol, and discovery accepts previously unknown node names as Erlang atoms. Restrict access
+  to the gossip port; configuring a secret does not make it safe to expose to untrusted senders.
+  Malformed packets are ignored. Compressed external terms are not part of the wire format.
+
   You may configure the multicast interface, multicast address, the interface address to bind to, the port,
   the TTL of the packets and the optional secret using the following settings:
 
@@ -241,11 +246,11 @@ defmodule Cluster.Strategy.Gossip do
     list_nodes = state.list_nodes
     topology = state.topology
 
-    case :erlang.binary_to_term(rest) do
-      %{node: ^self} ->
+    case decode_heartbeat(rest) do
+      {:ok, %{node: ^self}} ->
         :ok
 
-      %{node: n} when is_atom(n) ->
+      {:ok, %{node: n}} when is_atom(n) ->
         debug(state.topology, "received heartbeat from #{n}")
         Cluster.Strategy.connect_nodes(topology, connect, list_nodes, [n])
         :ok
@@ -259,6 +264,19 @@ defmodule Cluster.Strategy.Gossip do
     :ok
   end
 
+  # Our sender always uses uncompressed external terms. Reject compression before decoding
+  # so a small datagram cannot request an unbounded decompression allocation.
+  defp decode_heartbeat(<<131, 80, _::binary>>), do: :error
+
+  defp decode_heartbeat(packet) do
+    case :erlang.binary_to_term(packet, [:used]) do
+      {term, used} when used == byte_size(packet) -> {:ok, term}
+      _ -> :error
+    end
+  rescue
+    ArgumentError -> :error
+  end
+
   defp encrypt(_state, plaintext, password) do
     iv = :crypto.strong_rand_bytes(16)
     key = :crypto.hash(:sha256, password)
@@ -267,27 +285,18 @@ defmodule Cluster.Strategy.Gossip do
     {:ok, iv, ciphertext}
   end
 
-  defp decrypt(state, ciphertext, password, iv) do
+  defp decrypt(_state, ciphertext, password, iv)
+       when byte_size(ciphertext) > 0 and rem(byte_size(ciphertext), 16) == 0 do
     key = :crypto.hash(:sha256, password)
+    padded = :crypto.crypto_one_time(:aes_256_cbc, key, iv, ciphertext, false)
 
-    with {:unpadding, {:ok, padded}} <- {:unpadding, safe_decrypt(state, key, iv, ciphertext)},
-         {:decrypt, {:ok, _plaintext} = res} <- {:decrypt, pkcs7_unpad(padded)} do
-      res
-    else
-      {:unpadding, :error} -> {:error, :decrypt}
-      {:decrypt, :error} -> {:error, :unpadding}
+    case pkcs7_unpad(padded) do
+      {:ok, _plaintext} = result -> result
+      :error -> {:error, :unpadding}
     end
   end
 
-  defp safe_decrypt(state, key, iv, ciphertext) do
-    try do
-      {:ok, :crypto.crypto_one_time(:aes_256_cbc, key, iv, ciphertext, false)}
-    catch
-      :error, {tag, {file, line}, desc} ->
-        warn(state.topology, "decryption failed: #{inspect(tag)} (#{file}:#{line}): #{desc}")
-        :error
-    end
-  end
+  defp decrypt(_state, _ciphertext, _password, _iv), do: {:error, :decrypt}
 
   #
   # Pads a message using the PKCS #7 cryptographic message syntax.
@@ -314,9 +323,9 @@ defmodule Cluster.Strategy.Gossip do
   defp pkcs7_unpad(message) do
     padding_size = :binary.last(message)
 
-    if padding_size <= 16 do
-      message_size = byte_size(message)
+    message_size = byte_size(message)
 
+    if padding_size in 1..16 and padding_size <= message_size do
       if binary_part(message, message_size, -padding_size) ===
            :binary.copy(<<padding_size>>, padding_size) do
         {:ok, binary_part(message, 0, message_size - padding_size)}

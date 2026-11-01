@@ -6,6 +6,8 @@
   `ca.crt` now prevents discovery instead of sending credentials to an unverified server (#214).
 - Accept Kubernetes endpoint addresses without an optional `targetRef`, using the endpoint or
   requested namespace when needed; skip addresses without a usable hostname in hostname mode.
+- Ignore malformed Gossip packets, invalid encrypted payloads/padding, and compressed external
+  terms. The existing wire format is preserved; Gossip still requires a trusted network.
 - Add `kubernetes_use_cached_resources` option to Kubernetes strategy
 
 ## 3.4.1
