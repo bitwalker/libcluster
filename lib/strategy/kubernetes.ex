@@ -247,11 +247,43 @@ defmodule Cluster.Strategy.Kubernetes do
   EndpointSlice discovery additionally excludes explicit terminating conditions, even when a
   Service's `publishNotReadyAddresses` setting makes the endpoint appear ready.
 
-  For graceful shutdown, stop accepting new work and withdraw application readiness, allow time
-  for the discovery resource to stop advertising the peer and for another poll, then drain
-  existing work before stopping the BEAM. Set the pod's termination grace period accordingly.
-  Cluster membership does not migrate in-flight work, and transitive Erlang distribution
-  connections can reconnect a peer independently of this strategy.
+  Removing an endpoint does not prevent incoming distribution connections. A departing node
+  can reconnect through its own still-running discovery strategies: it may continue to discover
+  surviving nodes even after those nodes stop discovering it. After a successful disconnect,
+  later polls do not continuously evict a peer that reconnects. This can happen with just
+  two nodes, without transitive connections. Topologies may intentionally discover other service
+  roles, so absence of the local node from one topology is not a signal to shut it down.
+
+  Coordinate a planned departure in the application:
+
+  1. Stop **all** local discovery strategies through their supervising parent, so they cannot
+     reconnect the departing node or restart during draining. With the supervision tree in the
+     README, stop the cluster supervisor through its parent:
+
+         :ok = Supervisor.terminate_child(MyApp.Supervisor, Cluster.Supervisor)
+
+     Use your actual parent and child ID, which may differ from the supervisor's registered
+     name. Repeat for any other discovery supervisors. Calling `GenServer.stop/1` on a permanent
+     strategy worker allows its supervisor to restart it; stopping one topology leaves others
+     able to reconnect. Terminating discovery does not itself close existing connections.
+  2. Stop accepting new work and withdraw application readiness. Verify that the resource used
+     by the surviving nodes no longer advertises the departing peer. Services with
+     `publishNotReadyAddresses: true` can continue advertising it despite readiness withdrawal;
+     legacy Endpoints has no termination condition to filter. EndpointSlice mode excludes
+     endpoints explicitly marked `terminating`, including when their `ready` condition is true.
+  3. Allow surviving nodes to observe that change and complete a successful poll and
+     disconnection. Check the actual API response and their connected-node state rather than
+     assuming a fixed sleep is sufficient. API/controller lag, caching and request failures
+     can delay convergence. Drain application work with a deadline before stopping the BEAM;
+     cluster membership does not migrate in-flight work or update an application's routing cache.
+
+  Run this coordination while the application can still process it, for example from an
+  application-owned shutdown hook. Kubernetes starts endpoint updates concurrently with pod
+  shutdown, so a `preStop` hook cannot guarantee it runs before membership withdrawal. Include
+  hook execution, observation and work draining in `terminationGracePeriodSeconds`; see the
+  [Kubernetes termination flow](https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-termination-flow).
+  This sequence prevents local discovery retries; application-initiated or transitive distribution
+  connections can still reconnect a peer. Strict admission control requires a separate policy.
 
   ## Getting cluster information
 

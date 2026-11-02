@@ -38,6 +38,16 @@ Kubernetes tests use a loopback HTTPS server with ephemeral ports and certificat
 OTP's `public_key` test helpers. They need no Kubernetes cluster, recorded HTTP traffic, or test
 mocking dependencies. The TLS tests exercise the same real HTTP client as production discovery.
 
+On OTP25+, `test/kubernetes_termination_test.exs` additionally starts disposable local BEAM nodes
+using `:peer` with standard-I/O control, loopback distribution and a test-only cookie. These tests
+exercise actual distribution connections and the public supervision tree against controlled HTTPS
+responses; they are skipped on OTP24, where `:peer` is unavailable. They verify shutdown
+coordination, not Kubernetes controller timing or workload draining. Run them with:
+
+```sh
+mix test test/kubernetes_termination_test.exs --warnings-as-errors
+```
+
 Before submitting a change, run:
 
 ```sh

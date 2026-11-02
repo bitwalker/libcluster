@@ -67,6 +67,11 @@ end
 
 The following section describes topology configuration in more detail.
 
+For Kubernetes shutdown, coordinate application draining with discovery. Withdrawing readiness
+alone can leave a departing node's own strategies reconnecting it. See the Kubernetes strategy's
+[membership during shutdown](https://hexdocs.pm/libcluster/Cluster.Strategy.Kubernetes.html#module-membership-during-shutdown)
+guidance for stopping supervised discovery and observing membership withdrawal.
+
 ## Example Configuration
 
 You can configure `libcluster` either in your Mix config file (`config.exs`) as
