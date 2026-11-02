@@ -15,6 +15,8 @@
   and replaces CA trust only when configured. Default service-account CA verification is unchanged.
 - Enable Gossip UDP port sharing on Windows OTP 26.1+ with the default inet backend (#206),
   restrict BSD socket constants to BSD/macOS, and report bind failures with port/interface context.
+- Recover Gossip UDP reception after network error notifications without restarting discovery;
+  report an explicit failure if the socket cannot be reactivated.
 - Document Kubernetes shutdown coordination with supervised discovery (#114), backed by local
   distributed-node tests. Endpoint withdrawal alone does not prevent a departing node from
   reconnecting through its own strategies; stop discovery before planned readiness withdrawal.

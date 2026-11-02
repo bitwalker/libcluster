@@ -230,6 +230,24 @@ defmodule Cluster.Strategy.Gossip do
     {:noreply, state}
   end
 
+  def handle_info({:udp_error, socket, reason}, %State{meta: {_, _, socket, _}} = state) do
+    warn(state.topology, "UDP receive error: #{inspect(reason)}")
+    resume_socket(socket, state)
+  end
+
+  def handle_info({:udp_closed, socket}, %State{meta: {_, _, socket, _}} = state) do
+    resume_socket(socket, state)
+  end
+
+  defp resume_socket(socket, state) do
+    # The socket backend can report udp_closed after a receive error while the
+    # socket is still usable, but passive. The inet backend may remain active.
+    case :inet.setopts(socket, active: true) do
+      :ok -> {:noreply, state}
+      {:error, reason} -> {:stop, {:udp_rearm_failed, reason}, state}
+    end
+  end
+
   @impl true
   def terminate(_reason, %State{meta: {_, _, socket, _}}) do
     :gen_udp.close(socket)

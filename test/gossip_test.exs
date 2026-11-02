@@ -92,6 +92,64 @@ defmodule Cluster.Strategy.GossipTest do
     end
   end
 
+  for notification <- [:udp_error, :udp_closed] do
+    @tag capture_log: true
+    test "resumes real UDP reception after #{notification}" do
+      initial = %{
+        state()
+        | config: [
+            port: 0,
+            if_addr: "127.0.0.1",
+            multicast_addr: "127.0.0.1",
+            broadcast_only: true
+          ]
+      }
+
+      server = start_supervised!({Gossip, [initial]})
+      %State{meta: {_, _, socket, _}} = :sys.get_state(server)
+      {:ok, port} = :inet.port(socket)
+      :ok = :inet.setopts(socket, active: false)
+
+      message =
+        case unquote(notification) do
+          :udp_error -> {:udp_error, socket, :econnreset}
+          :udp_closed -> {:udp_closed, socket}
+        end
+
+      send(server, message)
+      assert %State{meta: {_, _, ^socket, _}} = :sys.get_state(server)
+      assert {:ok, [active: true]} = :inet.getopts(socket, [:active])
+
+      {:ok, sender} = :gen_udp.open(0, [:binary, active: false])
+      on_exit(fn -> :gen_udp.close(sender) end)
+
+      :ok =
+        :gen_udp.send(sender, {127, 0, 0, 1}, port, heartbeat(%{node: :"recovered@127.0.0.2"}))
+
+      assert_receive {:connect, :"recovered@127.0.0.2"}, 5_000
+
+      {:ok, {_, destination}} = :inet.sockname(sender)
+
+      :sys.replace_state(server, fn current ->
+        %{current | meta: {{127, 0, 0, 1}, destination, socket, nil}}
+      end)
+
+      send(server, :heartbeat)
+      assert {:ok, {_, ^port, <<"heartbeat::", _::binary>>}} = :gen_udp.recv(sender, 0, 5_000)
+    end
+  end
+
+  test "stops with a useful reason when the UDP socket cannot be rearmed" do
+    {:ok, socket} = :gen_udp.open(0, active: false)
+    :ok = :gen_udp.close(socket)
+    current = %{state() | meta: {{127, 0, 0, 1}, 12345, socket, nil}}
+
+    assert {:stop, {:udp_rearm_failed, reason}, ^current} =
+             Gossip.handle_info({:udp_closed, socket}, current)
+
+    assert reason in [:closed, :einval]
+  end
+
   def record_connection(caller, instance, node) do
     send(caller, {:connect, instance, node})
     true
