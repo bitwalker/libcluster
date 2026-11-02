@@ -65,6 +65,48 @@ jobs:
       - run: mix compile --warnings-as-errors
       - run: mix test --warnings-as-errors
 
+  gossip-windows:
+    name: Windows Gossip / OTP ${{ matrix.otp }}
+    runs-on: windows-2022
+    timeout-minutes: 15
+    env:
+      MIX_ENV: test
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - elixir: "1.16.3"
+            otp: "26.2.5.21"
+            rebar: "3.21.0"
+          - elixir: "1.20.5"
+            otp: "29.1.2"
+            rebar: "3.28.0"
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: erlef/setup-beam@v1.24.1
+        with:
+          otp-version: ${{ matrix.otp }}
+          elixir-version: ${{ matrix.elixir }}
+          rebar3-version: ${{ matrix.rebar }}
+          version-type: strict
+          install-hex: false
+          install-rebar: false
+      - name: Install Hex and select Rebar for Mix
+        shell: pwsh
+        run: |
+          mix local.hex 2.6.0 --force
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $rebar3 = Join-Path $env:INSTALL_DIR_FOR_REBAR3 'bin/rebar3'
+          if (-not (Test-Path $rebar3 -PathType Leaf)) {
+            throw "setup-beam Rebar escript not found: $rebar3"
+          }
+          "MIX_REBAR3=$rebar3" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+      - run: mix deps.get --only test
+      - run: mix deps.compile
+      - run: mix test test/gossip_test.exs --warnings-as-errors
+
   quality:
     name: Formatting, package and dependency checks
     runs-on: ubuntu-24.04

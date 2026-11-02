@@ -28,6 +28,94 @@ defmodule Cluster.Strategy.GossipTest do
       assert_receive {:connect, :"peer@127.0.0.2"}
       assert %State{} = :sys.get_state(pid)
     end
+
+    @tag capture_log: true
+    test "delivers a multicast heartbeat to both instances sharing a port" do
+      interface = multicast_interface()
+
+      config = [
+        port: 0,
+        if_addr: "0.0.0.0",
+        multicast_if: interface,
+        multicast_ttl: 0,
+        multicast_addr: "233.252.1.32"
+      ]
+
+      first_state = %{
+        state()
+        | config: config,
+          connect: {__MODULE__, :record_connection, [self(), :first]}
+      }
+
+      first = start_supervised!({Gossip, [first_state]}, id: :first)
+      %State{meta: {_, _, socket, _}} = :sys.get_state(first)
+      {:ok, port} = :inet.port(socket)
+      second_config = Keyword.put(config, :port, port)
+
+      second_state = %{
+        state()
+        | config: second_config,
+          connect: {__MODULE__, :record_connection, [self(), :second]}
+      }
+
+      start_supervised!({Gossip, [second_state]}, id: :second)
+
+      {:ok, sender} =
+        :gen_udp.open(0, multicast_if: interface, multicast_loop: true, multicast_ttl: 0)
+
+      on_exit(fn -> :gen_udp.close(sender) end)
+      packet = heartbeat(%{node: :"multicast-peer@127.0.0.2"})
+      :ok = :gen_udp.send(sender, {233, 252, 1, 32}, port, packet)
+
+      assert_receive {:connect, :first, :"multicast-peer@127.0.0.2"}, 5_000
+      assert_receive {:connect, :second, :"multicast-peer@127.0.0.2"}, 5_000
+    end
+
+    test "returns bind failure with port and interface context" do
+      # Windows requires exclusiveaddruse to prevent a reuse-enabled socket from
+      # sharing the blocker. Other platforms use the ordinary exclusive bind.
+      exclusive =
+        if match?({:win32, _}, :os.type()) and String.to_integer(System.otp_release()) >= 26,
+          do: [exclusiveaddruse: true],
+          else: []
+
+      {:ok, blocker} = :gen_udp.open(0, [ip: {127, 0, 0, 1}, reuseaddr: false] ++ exclusive)
+      on_exit(fn -> :gen_udp.close(blocker) end)
+      {:ok, port} = :inet.port(blocker)
+
+      initial = %{state() | config: [port: port, if_addr: "127.0.0.1", broadcast_only: true]}
+
+      assert {:stop, {:udp_open_failed, reason, [port: ^port, if_addr: {127, 0, 0, 1}]}} =
+               Gossip.init([initial])
+
+      assert reason in [:eaddrinuse, :eacces]
+    end
+  end
+
+  def record_connection(caller, instance, node) do
+    send(caller, {:connect, instance, node})
+    true
+  end
+
+  defp multicast_interface do
+    if match?({:win32, _}, :os.type()) do
+      # Windows loopback does not provide the same multicast behavior as Unix.
+      # TTL zero keeps the test packet on this host even with a real interface.
+      {:ok, interfaces} = :inet.getifaddrs()
+
+      addresses =
+        for {_name, properties} <- interfaces,
+            :up in Keyword.get(properties, :flags, []),
+            :multicast in Keyword.get(properties, :flags, []),
+            {:addr, {a, _, _, _} = ip} <- properties,
+            a not in [0, 127],
+            do: ip
+
+      assert [address | _] = addresses
+      address
+    else
+      {127, 0, 0, 1}
+    end
   end
 
   test "ignores invalid plaintext terms and trailing data" do

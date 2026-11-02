@@ -39,6 +39,15 @@ defmodule Cluster.Strategy.Gossip do
 
   A TTL of 1 will limit packets to the local network, and is the default TTL.
 
+  Multiple nodes on one host share the UDP port. Windows requires OTP 26.1 or newer
+  with the default `inet` backend for this mode; the strategy enables both `reuseaddr`
+  and `reuseport`. An option probe preserves legacy startup behavior on older runtimes or
+  backends that cannot enable `reuseport`; shared-port operation is unsupported there. BSD/macOS
+  use their platform socket option, while Linux uses `reuseaddr`. Multicast must be
+  permitted on the chosen interface and by the host firewall. A bind failure stops the
+  strategy with `{:udp_open_failed, reason, [port: port, if_addr: address]}` so an actual
+  port conflict remains visible.
+
   Optionally, `broadcast_only: true` option can be set which disables multicast and
   only uses broadcasting. This limits connectivity to local network but works on in
   scenarios where multicast is not enabled. Use `multicast_addr` as the broadcast address.
@@ -129,33 +138,44 @@ defmodule Cluster.Strategy.Gossip do
         broadcast: true
       ] ++ multicast_opts ++ reuse_port()
 
-    {:ok, socket} = :gen_udp.open(port, options)
+    case :gen_udp.open(port, options) do
+      {:ok, socket} ->
+        secret = Keyword.get(config, :secret, nil)
+        state = %State{state | :meta => {multicast_addr, port, socket, secret}}
+        {:ok, state, {:continue, nil}}
 
-    secret = Keyword.get(config, :secret, nil)
-    state = %State{state | :meta => {multicast_addr, port, socket, secret}}
-
-    # TODO: Remove this version check when we deprecate OTP < 21 support
-    if :erlang.system_info(:otp_release) >= ~c"21" do
-      {:ok, state, {:continue, nil}}
-    else
-      {:ok, state, 0}
+      {:error, reason} ->
+        {:stop, {:udp_open_failed, reason, [port: port, if_addr: ip]}}
     end
   end
 
   defp reuse_port() do
     case :os.type() do
-      {:unix, os_name} ->
-        cond do
-          os_name in [:darwin, :freebsd, :openbsd, :linux, :netbsd] ->
-            [{:raw, @sol_socket, @so_reuseport, <<1::native-32>>}]
+      {:unix, os_name} when os_name in [:darwin, :freebsd, :openbsd, :netbsd] ->
+        [{:raw, @sol_socket, @so_reuseport, <<1::native-32>>}]
 
-          true ->
-            []
-        end
+      {:win32, _} ->
+        windows_reuse_port()
 
       _ ->
         []
     end
+  end
+
+  defp windows_reuse_port do
+    # Check the active backend rather than inferring option support from the OTP
+    # major version. For example, OTP26.0 and older socket backends reject it.
+    case :gen_udp.open(0, active: false, reuseaddr: true, reuseport: true) do
+      {:ok, socket} ->
+        :gen_udp.close(socket)
+        [reuseport: true]
+
+      {:error, _} ->
+        []
+    end
+  catch
+    :exit, :badarg -> []
+    :error, :badarg -> []
   end
 
   defp sanitize_ip(input) do
@@ -170,14 +190,8 @@ defmodule Cluster.Strategy.Gossip do
   end
 
   # Send stuttered heartbeats
-  # TODO: Remove this version check when we deprecate OTP < 21 support
-  if :erlang.system_info(:otp_release) >= ~c"21" do
-    @impl true
-    def handle_continue(_, state), do: handle_info(:heartbeat, state)
-  else
-    @impl true
-    def handle_info(:timeout, state), do: handle_info(:heartbeat, state)
-  end
+  @impl true
+  def handle_continue(_, state), do: handle_info(:heartbeat, state)
 
   @impl true
   def handle_info(:heartbeat, %State{meta: {multicast_addr, port, socket, _}} = state) do
