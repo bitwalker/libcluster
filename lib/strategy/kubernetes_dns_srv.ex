@@ -25,8 +25,10 @@ defmodule Cluster.Strategy.Kubernetes.DNSSRV do
 
   As said above, the basename is configured by `:application_name` option.
 
-  Just one thing to keep in mind - when building an OTP release, make sure that the name of the OTP
-  release matches the name configured by `:application_name`.
+  The basename of each peer's running node must match `:application_name`. The Mix release name is
+  only the default basename in the examples below; an explicit `RELEASE_NODE` can override it.
+  See [Kubernetes node naming](readme.html#kubernetes-node-naming) for runtime release configuration
+  and troubleshooting long names, peer identities and connectivity.
 
   ## Getting `<domain>`
 
@@ -88,7 +90,7 @@ defmodule Cluster.Strategy.Kubernetes.DNSSRV do
 
       # rel/env.sh.eex
       export RELEASE_DISTRIBUTION=name
-      export RELEASE_NODE=<%= @release.name %>@$(hostname -f)
+      export RELEASE_NODE="<%= @release.name %>@$(hostname -f)"
 
   ## Polling Interval
 

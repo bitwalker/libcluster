@@ -33,8 +33,10 @@ defmodule Cluster.Strategy.Kubernetes do
 
   As said above, the basename is configured by `:kubernetes_node_basename` option.
 
-  Just one thing to keep in mind - when building an OTP release, make sure that the name of the OTP
-  release matches the name configured by `:kubernetes_node_basename`.
+  The basename of each peer's running node must match `:kubernetes_node_basename`. The Mix release name is
+  only the default basename in the examples below; an explicit `RELEASE_NODE` can override it.
+  See [Kubernetes node naming](readme.html#kubernetes-node-naming) for runtime release configuration
+  and troubleshooting long names, peer identities and connectivity.
 
   ## Getting `<ip_or_domain>`
 
@@ -152,7 +154,7 @@ defmodule Cluster.Strategy.Kubernetes do
 
       # rel/env.sh.eex
       export RELEASE_DISTRIBUTION=name
-      export RELEASE_NODE=<%= @release.name %>@${POD_IP}
+      export RELEASE_NODE="<%= @release.name %>@${POD_IP}"
 
   > `export RELEASE_DISTRIBUTION=name` will append a `-name` option to the `start` command directly
   > and requires no further changes to the `vm.args`.
@@ -174,7 +176,7 @@ defmodule Cluster.Strategy.Kubernetes do
 
       # rel/env.sh.eex
       export RELEASE_DISTRIBUTION=name
-      export RELEASE_NODE=<%= @release.name %>@$(hostname -f)
+      export RELEASE_NODE="<%= @release.name %>@$(hostname -f)"
 
   > `hostname -f` returns the whole FQDN, which is something like:
   > `$(hostname).${SERVICE_NAME}.${NAMESPACE}.svc.${CLUSTER_DOMAIN}"`.
@@ -210,7 +212,7 @@ defmodule Cluster.Strategy.Kubernetes do
       export POD_A_RECORD=$(echo $POD_IP | sed 's/\./-/g')
       export CLUSTER_DOMAIN=cluster.local  # modify this value according to your actual situation
       export RELEASE_DISTRIBUTION=name
-      export RELEASE_NODE=<%= @release.name %>@${POD_A_RECORD}.${NAMESPACE}.pod.${CLUSTER_DOMAIN}
+      export RELEASE_NODE="<%= @release.name %>@${POD_A_RECORD}.${NAMESPACE}.pod.${CLUSTER_DOMAIN}"
 
   IP-derived Pod DNS names require support from your cluster DNS configuration. CoreDNS needs
   `pods insecure` or `pods verified`; Pod records are disabled by default. IPv6 formatting

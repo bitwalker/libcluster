@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Clarify Kubernetes runtime node naming, Mix release configuration and connection diagnostics (#121).
 - Add `prune: false` to DNSPoll to keep peers connected when DNS returns rotating or partial
   answers. Pruning remains enabled by default (#190, #196).
 - Exclude deleting and terminal pods, and pods without a usable IP, from Kubernetes pods-mode

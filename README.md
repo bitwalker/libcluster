@@ -113,6 +113,94 @@ visit the docs on [HexDocs](https://hexdocs.pm/libcluster), and look at the
 module doc for the strategy you want to use. The authoritative documentation for
 each strategy is kept up to date with the module implementing it.
 
+## Kubernetes node naming
+
+With the default Erlang distribution callbacks, discovery must produce the **exact node name**
+used by each peer. libcluster does not rename the running VM or enable distribution for it.
+All three Kubernetes strategies use long names, but they build different host portions:
+
+| Strategy | Basename option | Example discovered node |
+| --- | --- | --- |
+| `Cluster.Strategy.Kubernetes` with default `mode: :ip` | `:kubernetes_node_basename` | `myapp@10.0.0.12` |
+| `Cluster.Strategy.Kubernetes.DNS` | `:application_name` | `myapp@10.0.0.12` |
+| `Cluster.Strategy.Kubernetes.DNSSRV` | `:application_name` | `myapp@myapp-0.myapp-headless.default.svc.cluster.local` |
+
+The API strategy also supports DNS and hostname modes; see its module documentation for their
+naming rules. DNS uses the returned IP addresses, while DNSSRV uses the returned SRV target
+names. A reachable hostname that resolves to the same IP is not a substitute for the peer's
+actual node identity.
+
+For a Mix release, run `mix release.init` in the application and configure `rel/env.sh.eex`.
+For the DNS strategy or the API strategy's IP mode:
+
+```sh
+export RELEASE_DISTRIBUTION=name
+export RELEASE_NODE="<%= @release.name %>@${POD_IP}"
+```
+
+Expose the pod's address at runtime, and supply the same distribution cookie to all peers
+through a Kubernetes Secret managed by your deployment:
+
+```yaml
+# In the application container's env list
+- name: POD_IP
+  valueFrom:
+    fieldRef:
+      fieldPath: status.podIP
+- name: RELEASE_COOKIE
+  valueFrom:
+    secretKeyRef:
+      name: myapp-distribution
+      key: cookie
+```
+
+For DNSSRV, use a StatefulSet with a headless service and a hostname matching its SRV target:
+
+```sh
+export RELEASE_DISTRIBUTION=name
+export RELEASE_NODE="<%= @release.name %>@$(hostname -f)"
+```
+
+These snippets use the release name as the basename. Match it with the appropriate basename
+option in the table. If the release is named differently, set the required basename explicitly
+in `RELEASE_NODE`; the release filename itself does not have to match. Configure names when the
+container starts, when its pod IP and hostname are known. Expanding a pod variable in a Dockerfile
+while building the image cannot provide that runtime identity.
+
+`RELEASE_DISTRIBUTION=name` selects long names. Mix releases default to `sname` (short names),
+which cannot connect to these IP/FQDN identities and can report
+`System NOT running to use fully qualified hostnames`. Setting `RELEASE_NODE` alone does not
+select long names. Let the release script supply `-name`; remove conflicting `-sname` settings
+from custom VM arguments. See [Mix release environment variables](https://hexdocs.pm/mix/Mix.Tasks.Release.html#module-environment-variables).
+
+### Check the running node
+
+Inspect the deployed VM through its existing console, or use the release's `rpc` command:
+
+```sh
+bin/myapp rpc 'IO.inspect(%{
+  node: Node.self(),
+  alive?: Node.alive?(),
+  longnames?: :net_kernel.longnames(),
+  peers: Node.list()
+})'
+```
+
+Check that distribution is running, `longnames?` is `true`, and each peer's `Node.self()` matches
+the exact target logged by libcluster, including the basename and the complete host portion.
+`nonode@nohost` means distribution is not running. If `rpc` cannot attach, inspect these values
+from the application's existing console or logs; `eval` or a separate `mix run` starts another
+VM and does not show the running application's identity. Do not print cookies or dump the
+container's environment while collecting diagnostics.
+
+After identities agree, try `Node.connect/1` with the **same target atom** shown in the discovery
+log from the running application node. A connection to a different name does not verify that
+target. Ensure DNS resolves the target's host portion from each pod, all peers use the same cookie,
+and pod-to-pod traffic permits EPMD (TCP 4369 by default) and the configured Erlang distribution listen ports.
+An application's HTTP port or a Kubernetes `containerPort` declaration alone does not establish
+that connectivity. NetworkPolicies, host firewalls and sidecars must permit the distribution
+traffic as well.
+
 ## Clustering
 
 You have a handful of choices with regards to cluster management out of the box:
