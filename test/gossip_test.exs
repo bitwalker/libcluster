@@ -50,6 +50,15 @@ defmodule Cluster.Strategy.GossipTest do
       first = start_supervised!({Gossip, [first_state]}, id: :first)
       %State{meta: {_, _, socket, _}} = :sys.get_state(first)
       {:ok, port} = :inet.port(socket)
+
+      if match?({:win32, _}, :os.type()) do
+        # Named getters report the driver's cached flags. Check Winsock itself
+        # before binding another socket, so a failure identifies the real state.
+        native = :inet.getopts(socket, [{:raw, 0xFFFF, 0x0004, 4}])
+
+        assert native == {:ok, [{:raw, 0xFFFF, 0x0004, <<1::native-32>>}]}
+      end
+
       second_config = Keyword.put(config, :port, port)
 
       second_state = %{

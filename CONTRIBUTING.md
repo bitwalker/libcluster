@@ -29,8 +29,9 @@ Use an absolute path for `MIX_BUILD_PATH`, for example `"$PWD/_build/test-otp24"
 versions and dependencies resolve the same build directory.
 
 A focused Windows 2022 job runs the Gossip tests on Elixir1.16.3/OTP26.2.5.21 and
-Elixir1.20.5/OTP29.1.2. It checks multicast delivery to two instances sharing a port and
-contextual bind failures. On Windows, point `MIX_REBAR3` to setup-beam's extensionless
+Elixir1.20.5/OTP29.1.2. It checks native Winsock port reuse, multicast delivery to two instances
+sharing a port, recovery after receive errors, and contextual bind failures. On Windows, point
+`MIX_REBAR3` to setup-beam's extensionless
 `bin/rebar3` escript, rather than its PowerShell or command wrapper. The local Unix matrix
 does not establish Windows socket behavior; require the hosted job before claiming that validation.
 

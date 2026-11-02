@@ -13,7 +13,7 @@
   API server certificates (#200). Peer mode verifies complete certificate identity, hostname,
   validity, signature and certificate constraints, supports overlapping certificates for rotation,
   and replaces CA trust only when configured. Default service-account CA verification is unchanged.
-- Enable Gossip UDP port sharing on Windows OTP 26.1+ with the default inet backend (#206),
+- Enable Gossip UDP port sharing using the native Winsock socket option on Windows (#206),
   restrict BSD socket constants to BSD/macOS, and report bind failures with port/interface context.
 - Recover Gossip UDP reception after network error notifications without restarting discovery;
   report an explicit failure if the socket cannot be reactivated.

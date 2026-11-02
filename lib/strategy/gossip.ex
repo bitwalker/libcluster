@@ -39,14 +39,11 @@ defmodule Cluster.Strategy.Gossip do
 
   A TTL of 1 will limit packets to the local network, and is the default TTL.
 
-  Multiple nodes on one host share the UDP port. Windows requires OTP 26.1 or newer
-  with the default `inet` backend for this mode; the strategy enables both `reuseaddr`
-  and `reuseport`. An option probe preserves legacy startup behavior on older runtimes or
-  backends that cannot enable `reuseport`; shared-port operation is unsupported there. BSD/macOS
-  use their platform socket option, while Linux uses `reuseaddr`. Multicast must be
-  permitted on the chosen interface and by the host firewall. A bind failure stops the
-  strategy with `{:udp_open_failed, reason, [port: port, if_addr: address]}` so an actual
-  port conflict remains visible.
+  Multiple nodes on one host share the UDP port. Windows uses the native Winsock
+  `SO_REUSEADDR` option, BSD/macOS use `SO_REUSEPORT`, and Linux uses `reuseaddr`.
+  Multicast must be permitted on the chosen interface and by the host firewall. A bind failure
+  stops the strategy with `{:udp_open_failed, reason, [port: port, if_addr: address]}` so an
+  actual port conflict remains visible.
 
   Optionally, `broadcast_only: true` option can be set which disables multicast and
   only uses broadcasting. This limits connectivity to local network but works on in
@@ -84,6 +81,7 @@ defmodule Cluster.Strategy.Gossip do
   @default_multicast_addr {233, 252, 1, 32}
   @sol_socket 0xFFFF
   @so_reuseport 0x0200
+  @windows_so_reuseaddr 0x0004
 
   def start_link(args) do
     GenServer.start_link(__MODULE__, args)
@@ -155,27 +153,13 @@ defmodule Cluster.Strategy.Gossip do
         [{:raw, @sol_socket, @so_reuseport, <<1::native-32>>}]
 
       {:win32, _} ->
-        windows_reuse_port()
+        # Set the native option explicitly: the inet driver's cached Windows
+        # reuse flags can suppress setsockopt even when the OS option is unset.
+        [{:raw, @sol_socket, @windows_so_reuseaddr, <<1::native-32>>}]
 
       _ ->
         []
     end
-  end
-
-  defp windows_reuse_port do
-    # Check the active backend rather than inferring option support from the OTP
-    # major version. For example, OTP26.0 and older socket backends reject it.
-    case :gen_udp.open(0, active: false, reuseaddr: true, reuseport: true) do
-      {:ok, socket} ->
-        :gen_udp.close(socket)
-        [reuseport: true]
-
-      {:error, _} ->
-        []
-    end
-  catch
-    :exit, :badarg -> []
-    :error, :badarg -> []
   end
 
   defp sanitize_ip(input) do
