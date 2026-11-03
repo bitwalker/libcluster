@@ -23,7 +23,10 @@
   distributed-node tests. Endpoint withdrawal alone does not prevent a departing node from
   reconnecting through its own strategies; stop discovery before planned readiness withdrawal.
 
-## 3.5.1
+## 3.5.1 — 2026-11-01
+
+[Published package](https://hex.pm/packages/libcluster/3.5.1) ·
+[Matching source](https://github.com/bitwalker/libcluster/commit/1d2da143cacb29ad2e3321f2df6d1d3d87d30ebd)
 
 - Always verify Kubernetes API TLS peers using the service-account CA. A missing or invalid
   `ca.crt` now prevents discovery instead of sending credentials to an unverified server (#214).
@@ -37,33 +40,68 @@
   older than 24.3 are no longer tested; the Elixir requirement remains `~> 1.13`.
 - Replace recorded Kubernetes HTTP tests with local HTTPS fixtures and remove ExVCR and
   its transitive test dependencies.
+- Correct the DNSPoll `polling_interval` option name in its documentation (#215).
 
-## 3.5.0
+## 3.5.0 — 2025-01-09
 
-- Add `kubernetes_use_cached_resources` option to Kubernetes strategy
+[Source](https://github.com/bitwalker/libcluster/commit/6d8c11f57b9bde9a047e2ea9276f19b58c371466) · [Changes](https://github.com/bitwalker/libcluster/compare/0d888303b4d3c0bd45d83baea36d2a5dd7100dea...6d8c11f57b9bde9a047e2ea9276f19b58c371466)
 
-## 3.4.1
+- Add `kubernetes_use_cached_resources` to Kubernetes discovery, requesting
+  `resourceVersion=0` when enabled (#207).
+- Correct Kubernetes query-parameter encoding with `URI.encode_query/2`.
 
-- Use new cypher names
-- Allow Epmd strategy to reconnect after connection failures
-- Detect Self Signed Certificate Authority for Kubernetes Strategy
-- Remove calls to deprecated `Logger.warn/2`
-- Correct misspell of 'Empd' -> 'Epmd' in `Cluster.Strategy.LocalEpmd` moduledoc
+## 3.4.1 — 2024-09-17
 
-## 3.4.0
+[Source](https://github.com/bitwalker/libcluster/commit/0d888303b4d3c0bd45d83baea36d2a5dd7100dea) · [Changes](https://github.com/bitwalker/libcluster/compare/cf6d4141d6c740a0a182b2bbc9caf18aa457c065...0d888303b4d3c0bd45d83baea36d2a5dd7100dea)
 
-### Added
+- Add telemetry events for successful and failed node connections and disconnections,
+  including durations for successful operations.
+- Add the `telemetry ~> 1.3` runtime dependency and raise the Elixir requirement
+  from `~> 1.8` to `~> 1.13`.
+- Correct the LocalEpmd module name in its documentation.
 
-- Telemetry events added for tracking node connects and disconnects
+The earlier changelog labeled telemetry as 3.4.0. Hex has no published 3.4.0;
+the verified 3.4.1 package first contains this feature.
 
-### 3.3.0
+## 3.3.3 — 2023-06-22
+
+[Source](https://github.com/bitwalker/libcluster/commit/cf6d4141d6c740a0a182b2bbc9caf18aa457c065) · [Changes](https://github.com/bitwalker/libcluster/compare/256e58b49d7a4e153c3ec49029107d1057aadb74...cf6d4141d6c740a0a182b2bbc9caf18aa457c065)
+
+- Add an optional Epmd connection retry timeout, defaulting to the existing
+  one-time connection behavior (#183).
+- Verify Kubernetes API TLS peers when a service-account `ca.crt` is present (#194).
+  This version still permits unverified TLS when that file is absent; 3.5.1 makes
+  verification mandatory.
+- Use `Logger.warning/2` on supported Elixir versions, retaining the older fallback (#195).
+- Expand Kubernetes setup and node-naming documentation (#185), and document LocalEpmd
+  startup requirements.
+
+## 3.3.2 — 2023-01-25
+
+[Source](https://github.com/bitwalker/libcluster/commit/256e58b49d7a4e153c3ec49029107d1057aadb74) · [Changes](https://github.com/bitwalker/libcluster/compare/568209ac56cfb3ae41f5757ed8fc769099b657fc...256e58b49d7a4e153c3ec49029107d1057aadb74)
+
+- Use the configured Gossip multicast interface when joining the multicast group (#165).
+- Adjust Gossip port-reuse handling for Linux (#187); subsequent corrections are listed
+  under Unreleased.
+- Replace the explicit OTP application list with `extra_applications`, and remove the
+  library config directory.
+- Correct generated documentation source references to use bare version tags (#166).
+- Add Mix release naming guidance and a DNSSRV namespace example (#172).
+
+## 3.3.1 — 2022-01-18
+
+[Source](https://github.com/bitwalker/libcluster/commit/568209ac56cfb3ae41f5757ed8fc769099b657fc) · [Changes](https://github.com/bitwalker/libcluster/compare/b5b2f068f1ff6e715a99748ff1b37d5fce74dc2d...568209ac56cfb3ae41f5757ed8fc769099b657fc)
+
+- Use the supported `:aes_256_cbc` cipher name for encrypted Gossip messages (#161).
+
+## 3.3.0
 
 ### Changed
 
 - Default multicast address is now 233.252.1.32, was 230.1.1.251, [commit](https://github.com/bitwalker/libcluster/commit/449a65e14f152a83a0f8ee371f05743610cd292f)
 
 
-### 2.3.0
+## 2.3.0
 
 ### Added
 

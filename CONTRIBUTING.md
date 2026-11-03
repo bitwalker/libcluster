@@ -115,3 +115,32 @@ path filters. Configure required checks only after successful hosted runs.
    the maintainer pushes or publishes anything. Keep local `tasks/` documents out of commits.
 5. After publication, verify the Hex version and package contents, documentation source links,
    and GitHub tag/release agree. Do not invent historical tag targets from version bumps alone.
+
+
+## Historical release provenance
+
+The Hex archives for the following versions were checked against repository history. Each
+archive's SHA-256 matches its Hex release API checksum, and all 17 packaged files, including
+their path set, match these revisions byte-for-byte. Generated archive metadata is separate
+from the packaged source. Changelog source/compare links use commits so they work while
+historical tags are missing.
+
+| Hex version | Matching packaged source |
+| --- | --- |
+| [3.3.1](https://hex.pm/packages/libcluster/3.3.1) | [`568209ac56cf`](https://github.com/bitwalker/libcluster/commit/568209ac56cfb3ae41f5757ed8fc769099b657fc) |
+| [3.3.2](https://hex.pm/packages/libcluster/3.3.2) | [`256e58b49d7a`](https://github.com/bitwalker/libcluster/commit/256e58b49d7a4e153c3ec49029107d1057aadb74) |
+| [3.3.3](https://hex.pm/packages/libcluster/3.3.3) | [`cf6d4141d6c7`](https://github.com/bitwalker/libcluster/commit/cf6d4141d6c740a0a182b2bbc9caf18aa457c065) |
+| [3.4.1](https://hex.pm/packages/libcluster/3.4.1) | [`0d888303b4d3`](https://github.com/bitwalker/libcluster/commit/0d888303b4d3c0bd45d83baea36d2a5dd7100dea) |
+| [3.5.0](https://hex.pm/packages/libcluster/3.5.0) | [`6d8c11f57b9b`](https://github.com/bitwalker/libcluster/commit/6d8c11f57b9bde9a047e2ea9276f19b58c371466) |
+| [3.5.1](https://hex.pm/packages/libcluster/3.5.1) | [`1d2da143cacb`](https://github.com/bitwalker/libcluster/commit/1d2da143cacb29ad2e3321f2df6d1d3d87d30ebd) and [`518537143092`](https://github.com/bitwalker/libcluster/commit/518537143092a63a547251469be455fea28be15b) |
+
+A package match establishes the published source, not the full checkout used to publish it:
+`mix.lock`, tests and CI files were excluded. The two 3.5.1 revisions differ only in `mix.lock`,
+so either reproduces its packaged source; confirm the actual release checkout before selecting
+its tag if that information is available. The earlier `7e55fce2` release candidate lacks the
+published DNSPoll documentation correction and is not an exact package match.
+
+Use bare version tags for verified historical sources, preserving existing tags. Do not infer a
+3.4.0 release from the former changelog heading: Hex lists no such version, and telemetry first
+appears in the verified 3.4.1 package. Creating missing tags and GitHub releases remains a
+maintainer publishing step; never move an existing tag to make the ledger consistent.
