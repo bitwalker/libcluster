@@ -35,7 +35,7 @@ jobs:
           args: -color
 
       - name: Check workflow security
-        uses: zizmorcore/zizmor-action@v0.7.1
+        uses: zizmorcore/zizmor-action@v0.8.0
         with:
           advanced-security: false
           online-audits: false
