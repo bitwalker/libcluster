@@ -2,10 +2,11 @@ defmodule Cluster.Strategy.Kubernetes.DNSSRV do
   @default_polling_interval 5_000
 
   @moduledoc """
-  This clustering strategy works by issuing a SRV query for the headless service where the StatefulSet
-  containing your nodes is running.
+  This clustering strategy discovers node hostnames from SRV records for a headless Service.
+  The example below uses a StatefulSet to give Pods stable hostnames.
 
-  > This strategy requires deploying pods as a StatefulSet which is exposed by a headless service.
+  > This strategy requires per-Pod DNS identities exposed by a headless Service.
+  > A StatefulSet provides the stable hostnames used in this example.
   > If you want to avoid that, you could use `Cluster.Strategy.Kubernetes.DNS`.
 
   It assumes that all Erlang nodes are using longnames - `<basename>@<domain>`:
@@ -38,7 +39,7 @@ defmodule Cluster.Strategy.Kubernetes.DNSSRV do
 
   Getting this strategy to work requires:
 
-  1. deploying pods as a StatefulSet (otherwise, hostname won't set for pods)
+  1. giving each Pod a hostname matching its SRV target (a StatefulSet supplies stable identities)
   2. exposing above StatefulSet by a headless service (otherwise, the SRV query won't work as expected)
   3. setting the name of Erlang node according to hostname of pods
 
@@ -104,7 +105,7 @@ defmodule Cluster.Strategy.Kubernetes.DNSSRV do
           erlang_nodes_in_k8s: [
             strategy: #{__MODULE__},
             config: [
-              service: "myapp-headless",
+              service: "_web._tcp.myapp-headless",
               application_name: "myapp",
               namespace: "default",
               polling_interval: 10_000
@@ -112,39 +113,65 @@ defmodule Cluster.Strategy.Kubernetes.DNSSRV do
           ]
         ]
 
-  ## An example of how this strategy extracts topology information from DNS
+  ## Select the SRV query
+
+  For the Service's named `web` TCP port, set `service: "_web._tcp.myapp-headless"`.
+  The strategy appends the namespace and `svc.<cluster-domain>`; with namespace `default`
+  and the default domain, the query is `_web._tcp.myapp-headless.default.svc.cluster.local.`.
+  Do not pass the full FQDN as `:service`. Set `CLUSTER_DOMAIN` if your cluster uses another domain.
+  `StatefulSet.spec.serviceName` remains `myapp-headless`, without the port/protocol prefix.
+
+  Kubernetes specifies SRV names as `_port-name._protocol.service.namespace.svc.cluster-domain`.
+  A headless Service returns per-Pod targets; a normal ClusterIP Service returns its Service name.
+  See [Kubernetes DNS records](https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/#srv-records).
+  Bare Service SRV queries may work with some DNS implementations; existing configurations remain
+  accepted, but named-port queries avoid relying on that extension. This is not a CoreDNS-only strategy.
+
+  Only the SRV target contributes to `application_name@target`. The SRV port, priority and weight
+  do not select the Erlang distribution listener; the default distribution uses EPMD for that.
+  An HTTP port in the discovery Service therefore does not make distribution use HTTP.
+
+  ## Check the SRV targets
+
+  From an application Pod, inspect the selected Service and the exact query:
 
   ```sh
-  $ hostname -f
-  myapp-1.myapp-headless.default.svc.cluster.local
-
-  # An SRV query for a headless service returns multiple entries
-  $ dig SRV myapp-headless.default.svc.cluster.local
-
-  ; <<>> DiG 9.14.3 <<>> SRV myapp-headless.default.svc.cluster.local
-  ;; global options: +cmd
-  ;; Got answer:
-  ;; WARNING: .local is reserved for Multicast DNS
-  ;; You are currently testing what happens when an mDNS query is leaked to DNS
-  ;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 7169
-  ;; flags: qr aa rd ra; QUERY: 1, ANSWER: 2, AUTHORITY: 0, ADDITIONAL: 2
-
-  ;; QUESTION SECTION:
-  ;myapp-headless.default.svc.cluster.local. IN SRV
-
-  ;; ANSWER SECTION:
-  myapp-headless.default.svc.cluster.local. 30 IN SRV 10 50 0 myapp-0.myapp-headless.default.svc.cluster.local.
-  myapp-headless.default.svc.cluster.local. 30 IN SRV 10 50 0 myapp-1.myapp-headless.default.svc.cluster.local.
-
-  ;; ADDITIONAL SECTION:
-  myapp-0.myapp-headless.default.svc.cluster.local. 30 IN A 10.1.0.95
-  myapp--1.myapp-headless.default.svc.cluster.local. 30 IN A 10.1.0.96
-
-  ;; Query time: 0 msec
-  ;; SERVER: 10.96.0.10#53(10.96.0.10)
-  ;; WHEN: Wed Jul 03 11:55:27 UTC 2019
-  ;; MSG SIZE  rcvd: 167
+  kubectl get service myapp-headless -n default -o yaml
+  kubectl get statefulset myapp -n default -o yaml
+  dig +short SRV _web._tcp.myapp-headless.default.svc.cluster.local.
   ```
+
+  Expected targets include `myapp-0.myapp-headless.default.svc.cluster.local.` and
+  `myapp-1.myapp-headless.default.svc.cluster.local.`, not just the Service FQDN. The final dot
+  in `dig` output denotes an absolute DNS name. Compare the actual Erlang resolver result and
+  libcluster's logged target with the peer's `Node.self()`; do not append dots to Erlang node names
+  as a workaround. Check the Service selector, `clusterIP: None`, named port/protocol,
+  StatefulSet `serviceName`, namespace, cluster domain and published endpoint readiness.
+
+  For example, `myapp@myapp-headless.default.svc.cluster.local` is not the same node identity as
+  `myapp@myapp-0.myapp-headless.default.svc.cluster.local`, even if both hostnames reach a Pod.
+  Use the [node naming checks](readme.html#kubernetes-node-naming) and attempt `Node.connect/1`
+  with exactly the target libcluster logs, from the running application node.
+
+  Once identities match, check EPMD and the distribution listener from each peer. To bound the
+  listener to TCP 9100 in a Mix release, add this to `rel/env.sh.eex`:
+
+  ```sh
+  case "$RELEASE_COMMAND" in
+    start*|daemon*)
+      export ELIXIR_ERL_OPTIONS="${ELIXIR_ERL_OPTIONS:-} -kernel inet_dist_listen_min 9100 inet_dist_listen_max 9100"
+      ;;
+  esac
+  ```
+
+  Apply the bound only to application startup, so `rpc` and remote-console helper VMs can use
+  their own ports. Permit TCP 4369 (default EPMD) and 9100 between Pods in network policies and
+  firewalls. In a mesh, check interception, authorization and TLS policy for both connections;
+  Erlang distribution is TCP, not HTTP. Configure the actual distribution ports as opaque TCP
+  according to [Istio protocol selection](https://istio.io/latest/docs/ops/configuration/traffic-management/protocol-selection/).
+  If DNS, identity and direct connectivity agree, reproduce in a disposable deployment with
+  and without sidecars before attributing the remaining failure to Istio. No mesh bypass or
+  global TLS-policy change is required by this strategy.
 
   """
   use GenServer

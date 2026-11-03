@@ -200,6 +200,8 @@ and pod-to-pod traffic permits EPMD (TCP 4369 by default) and the configured Erl
 An application's HTTP port or a Kubernetes `containerPort` declaration alone does not establish
 that connectivity. NetworkPolicies, host firewalls and sidecars must permit the distribution
 traffic as well.
+For SRV query selection, per-Pod targets and mesh diagnostics, see the
+[DNSSRV checklist](https://hexdocs.pm/libcluster/Cluster.Strategy.Kubernetes.DNSSRV.html#module-check-the-srv-targets).
 
 ## Clustering
 
