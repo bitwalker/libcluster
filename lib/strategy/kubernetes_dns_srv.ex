@@ -93,6 +93,9 @@ defmodule Cluster.Strategy.Kubernetes.DNSSRV do
       export RELEASE_DISTRIBUTION=name
       export RELEASE_NODE="<%= @release.name %>@$(hostname -f)"
 
+  For DNS publication, readiness and persistent database startup, see
+  [Kubernetes startup and readiness](readme.html#kubernetes-startup-and-readiness).
+
   ## Polling Interval
 
   The default interval to sync topologies is `#{@default_polling_interval}`

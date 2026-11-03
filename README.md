@@ -203,6 +203,62 @@ traffic as well.
 For SRV query selection, per-Pod targets and mesh diagnostics, see the
 [DNSSRV checklist](https://hexdocs.pm/libcluster/Cluster.Strategy.Kubernetes.DNSSRV.html#module-check-the-srv-targets).
 
+## Kubernetes startup and readiness
+
+Starting `Cluster.Supervisor` before a database-dependent child does not guarantee that peers
+have been discovered when that child starts. A strategy may still be waiting for DNS, an API
+response or a connection retry. `Node.list()` at one instant is not a complete membership list
+or proof of database availability.
+
+For DNS-based discovery, distinguish an empty answer, `:nxdomain` and a connection failure.
+The DNS strategies log lookup errors and retry on their next poll. A failed lookup currently
+produces an empty discovery snapshot and can disconnect previously discovered peers; it does
+not mean the node's hostname or persisted database is corrupt. DNSSRV keeps the returned target
+hostname as the node identity rather than replacing it with a resolved IP address.
+
+Avoid a bootstrap cycle in which readiness requires database peers, while discovery DNS only
+publishes ready Pods. A discovery headless Service can opt into early publication:
+
+```yaml
+# In the discovery Service's spec, alongside clusterIP: None and its named ports
+publishNotReadyAddresses: true
+```
+
+This exposes unready endpoints to consumers of that Service; use a separate client-facing
+Service when clients must only reach ready Pods. See [Kubernetes DNS publication](https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/#pod-s-hostname-and-subdomain-fields).
+It does not create missing replicas: StatefulSet ordering can still block a bootstrap that
+requires every replica before the first Pod becomes ready. Design the application bootstrap
+policy and controller ordering together.
+
+For a persistent Mnesia application, keep bootstrap coordination in the application:
+
+1. Start distribution, discovery and a coordinator that can remain alive while peers are absent.
+   Keep the node name and its persistent storage association stable across restarts.
+2. Decide explicitly whether this is an authorized first cluster or a node joining an existing
+   one. An empty discovery result, timeout or network partition cannot elect a new schema owner.
+3. Retry joining the expected database cluster, then wait for the required tables with a bounded
+   `:mnesia.wait_for_tables/2` call. Handle timeout as a retryable or operator-visible state,
+   rather than treating any Erlang connection as database readiness.
+4. Start dependent workers and mark the application ready only when its database checks pass.
+   Recover existing persisted state through the application's documented backup/recovery policy.
+
+Do not delete Mnesia files, recreate schemas, force-load tables or insert an arbitrary boot sleep
+as a remedy for a DNS error. Table synchronization and recovery have their own consistency
+requirements; see the [Mnesia reference](https://www.erlang.org/doc/apps/mnesia/mnesia.html).
+Use disposable storage when reproducing the bootstrap sequence.
+
+Keep [startup, liveness and readiness probes](https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#container-probes)
+distinct: allow legitimate startup time, check whether the process can make progress for
+liveness, and check whether it can serve requests for readiness. A temporary peer outage alone
+should not cause every otherwise healthy node to restart.
+
+When diagnosing a rollout, collect a bounded timeline of Pod creation/readiness, DNS answers,
+libcluster lookup/connect messages and database bootstrap attempts. Inspect the running node
+identity, configured Mnesia directory, `:mnesia.system_info(:is_running)`,
+`:mnesia.system_info(:db_nodes)` and `:mnesia.system_info(:running_db_nodes)` once Mnesia is
+started; avoid collecting table contents or credentials. A StatefulSet by itself does not
+establish correct schema initialization or explain a Pow/Mnesia crash loop.
+
 ## Clustering
 
 You have a handful of choices with regards to cluster management out of the box:

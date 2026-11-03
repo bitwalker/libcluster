@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Explain DNS readiness, discovery retries and application-owned Mnesia bootstrap coordination (#111).
 - Document named-port Kubernetes SRV queries, per-Pod identities and bounded distribution/mesh diagnostics (#149).
 - Clarify Kubernetes runtime node naming, Mix release configuration and connection diagnostics (#121).
 - Add `prune: false` to DNSPoll to keep peers connected when DNS returns rotating or partial
