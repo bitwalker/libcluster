@@ -259,6 +259,78 @@ identity, configured Mnesia directory, `:mnesia.system_info(:is_running)`,
 started; avoid collecting table contents or credentials. A StatefulSet by itself does not
 establish correct schema initialization or explain a Pow/Mnesia crash loop.
 
+## Kubernetes rolling deployments
+
+libcluster connects Erlang nodes; it does not distribute application code or choose where
+application workers run. A new release can discover an older node successfully and still fail
+when a distributed supervisor places a worker whose module is absent on that node. For example,
+release A may contain only `MyApp.WorkerA`, while release B also contains `MyApp.WorkerB`.
+Connecting A and B does not make `MyApp.WorkerB.start_link/1` available on A.
+[Horde.DynamicSupervisor](https://hexdocs.pm/horde/Horde.DynamicSupervisor.html) manages its own
+membership and process placement; check the behavior of the Horde version and distribution
+strategy your application actually uses.
+
+Prefer a staged compatible rollout:
+
+1. Deploy the new worker modules and any required message/data compatibility to all eligible
+   nodes, with scheduling of the new worker still disabled.
+2. Verify that every node eligible for placement supports the worker, then enable its scheduling.
+   Membership changes and node restarts must preserve that eligibility policy; a one-time
+   module check is not an atomic placement guarantee.
+3. Keep rollback versions compatible with workers that may still be assigned to them. When
+   removing functionality, stop scheduling it before removing its code from eligible nodes.
+
+For diagnosis, call `:code.ensure_loaded/1` and check `:erlang.function_exported/3` on the
+**target node**, for example via `:erpc.call/4`. Checking the caller's modules or connecting to a
+peer only establishes the caller's code or network reachability. A missing remote module is
+not evidence of a discovery failure.
+
+If incompatible releases must use separate clusters, the existing Kubernetes API strategy can
+scope discovery by a version label. For example, expose the Pod label at runtime through the
+[Downward API](https://kubernetes.io/docs/concepts/workloads/pods/downward-api/#information-available-via-fieldref):
+
+```yaml
+- name: CLUSTER_VERSION
+  valueFrom:
+    fieldRef:
+      fieldPath: metadata.labels['app.kubernetes.io/version']
+```
+
+Then configure a pods-mode topology in `config/runtime.exs` (and pass it to `Cluster.Supervisor`
+as described above):
+
+```elixir
+config :libcluster,
+  topologies: [
+    version_group: [
+      strategy: Cluster.Strategy.Kubernetes,
+      config: [
+        kubernetes_ip_lookup_mode: :pods,
+        kubernetes_node_basename: "myapp",
+        kubernetes_selector:
+          "app=myapp,app.kubernetes.io/version=#{System.fetch_env!("CLUSTER_VERSION")}"
+      ]
+    ]
+  ]
+```
+
+Set a valid `app.kubernetes.io/version` label on the Pod template, and configure the local node
+identity and namespace as in the strategy's documentation. The selector requires no custom
+strategy. DNS strategies cannot filter arbitrary Pod labels; use distinct headless Services
+with the intended selectors and matching node identities instead.
+
+A discovery selector is not a connection admission rule. Other topologies, existing connections,
+manual connections and transitive Erlang connections through shared peers can bridge groups.
+Align discovery and the application's distributed supervisor/registry membership across all
+peers; changing a selector does not by itself establish isolation. Plan the complete transition
+before changing a running stateful cluster.
+
+Separate groups can each run a nominally unique worker or scheduled job. Plan duplicate work,
+external side effects, storage ownership, handoff, reduced capacity, readiness and communication
+between versions. Version isolation prevents direct state handoff through the shared Erlang
+cluster; it does not replace an application migration protocol. Do not change distribution
+cookies as an ad hoc rollout fix.
+
 ## Clustering
 
 You have a handful of choices with regards to cluster management out of the box:

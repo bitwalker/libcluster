@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Explain mixed-version worker compatibility, staged rollouts and version-scoped discovery tradeoffs (#180).
 - Explain DNS readiness, discovery retries and application-owned Mnesia bootstrap coordination (#111).
 - Document named-port Kubernetes SRV queries, per-Pod identities and bounded distribution/mesh diagnostics (#149).
 - Clarify Kubernetes runtime node naming, Mix release configuration and connection diagnostics (#121).
