@@ -133,6 +133,37 @@ defmodule Cluster.Strategy.KubernetesTest do
     refute_receive {:disconnect, _}
   end
 
+  test "retries a failed poll and connects once the API recovers", context do
+    body = File.read!(Path.join([__DIR__, "fixtures", "kubernetes", "endpoints.json"]))
+    counter = :counters.new(1, [])
+
+    responder = fn ->
+      :counters.add(counter, 1, 1)
+
+      if :counters.get(counter, 1) == 1 do
+        {503, "temporarily unavailable"}
+      else
+        body
+      end
+    end
+
+    port = start_https(context.valid, responder, 200)
+
+    start_supervised!(
+      {Kubernetes,
+       [
+         state(
+           context,
+           port,
+           [polling_interval: 50, kubernetes_poll_backoff: [base_ms: 10, max_ms: 20, jitter: 0]],
+           MapSet.new()
+         )
+       ]}
+    )
+
+    assert_receive {:connect, :"test_basename@10.48.33.136"}, 1_000
+  end
+
   defp start_strategy(context, config \\ []) do
     resource = Keyword.get(config, :kubernetes_ip_lookup_mode, :endpoints)
     body = File.read!(Path.join([__DIR__, "fixtures", "kubernetes", "#{resource}.json"]))

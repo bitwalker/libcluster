@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Add `kubernetes_poll_backoff` to `Cluster.Strategy.Kubernetes`, applying capped
+  exponential backoff with jitter after a failed poll so a degraded API server is
+  not polled at the fixed interval. Disabled by default.
 - Explain mixed-version worker compatibility, staged rollouts and version-scoped discovery tradeoffs (#180).
 - Explain DNS readiness, discovery retries and application-owned Mnesia bootstrap coordination (#111).
 - Document named-port Kubernetes SRV queries, per-Pod identities and bounded distribution/mesh diagnostics (#149).

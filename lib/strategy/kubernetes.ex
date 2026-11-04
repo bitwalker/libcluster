@@ -236,6 +236,21 @@ defmodule Cluster.Strategy.Kubernetes do
   The default interval to sync topologies is `#{@default_polling_interval}`
   (#{div(@default_polling_interval, 1000)} seconds). You can configure it with `:polling_interval` option.
 
+  ### Failure backoff
+
+  A poll that fails, for example because the API server is unavailable or rate
+  limiting, keeps the last known membership and retries on the next polling
+  interval. Set `:kubernetes_poll_backoff` to add capped exponential backoff
+  with jitter after each failure, so a degraded API server is not polled again
+  at the fixed interval:
+
+      kubernetes_poll_backoff: [base_ms: 100, max_ms: 30_000, jitter: 0.2]
+
+  `:base_ms` is the delay added after the first failure (default `50`),
+  `:max_ms` caps it (default `60_000`), and `:jitter` spreads retries across
+  clients (default `0.2`, between `0` and `1`). `true` uses the defaults. The
+  option is disabled by default, which keeps the fixed polling interval.
+
   ## Membership during shutdown
 
   Changes to discovered membership take effect on the next successful poll that observes them.
@@ -372,6 +387,7 @@ defmodule Cluster.Strategy.Kubernetes do
   import Cluster.Logger
 
   alias Cluster.Strategy.State
+  alias Cluster.Strategy.Kubernetes.Backoff
   alias Cluster.Strategy.Kubernetes.EndpointSlice
   alias Cluster.Strategy.Kubernetes.TLS
 
@@ -383,7 +399,7 @@ defmodule Cluster.Strategy.Kubernetes do
   end
 
   def init([%State{} = state]) do
-    {:ok, load(state)}
+    {:ok, load(state, 0)}
   end
 
   @impl true
@@ -392,15 +408,35 @@ defmodule Cluster.Strategy.Kubernetes do
   end
 
   def handle_info(:load, %State{} = state) do
-    {:noreply, load(state)}
+    {:noreply, load(state, 0)}
+  end
+
+  def handle_info({:load, attempt}, %State{} = state) do
+    {:noreply, load(state, attempt)}
   end
 
   def handle_info(_, state) do
     {:noreply, state}
   end
 
-  defp load(%State{topology: topology} = state) do
-    new_nodelist = MapSet.new(get_nodes(state))
+  defp load(%State{topology: topology, meta: meta} = state, attempt) do
+    case get_nodes(state) do
+      {:ok, discovered} ->
+        nodes = reconcile(topology, state, MapSet.new(discovered))
+        Process.send_after(self(), {:load, 0}, polling_interval(state))
+        %State{state | meta: nodes}
+
+      {:error, _reason} ->
+        # Keep the last known membership and retry on the next poll, backing off
+        # so a degraded API server is not hit at the fixed polling interval.
+        nodes = reconcile(topology, state, meta)
+        delay = polling_interval(state) + Backoff.delay(backoff_setting(state), attempt)
+        Process.send_after(self(), {:load, attempt + 1}, delay)
+        %State{state | meta: nodes}
+    end
+  end
+
+  defp reconcile(topology, state, new_nodelist) do
     removed = MapSet.difference(state.meta, new_nodelist)
 
     new_nodelist =
@@ -420,27 +456,25 @@ defmodule Cluster.Strategy.Kubernetes do
           end)
       end
 
-    new_nodelist =
-      case Cluster.Strategy.connect_nodes(
-             topology,
-             state.connect,
-             state.list_nodes,
-             MapSet.to_list(new_nodelist)
-           ) do
-        :ok ->
-          new_nodelist
+    case Cluster.Strategy.connect_nodes(
+           topology,
+           state.connect,
+           state.list_nodes,
+           MapSet.to_list(new_nodelist)
+         ) do
+      :ok ->
+        new_nodelist
 
-        {:error, bad_nodes} ->
-          # Remove the nodes which should have been added, but couldn't be for some reason
-          Enum.reduce(bad_nodes, new_nodelist, fn {n, _}, acc ->
-            MapSet.delete(acc, n)
-          end)
-      end
-
-    Process.send_after(self(), :load, polling_interval(state))
-
-    %State{state | meta: new_nodelist}
+      {:error, bad_nodes} ->
+        # Remove the nodes which should have been added, but couldn't be for some reason
+        Enum.reduce(bad_nodes, new_nodelist, fn {n, _}, acc ->
+          MapSet.delete(acc, n)
+        end)
+    end
   end
+
+  defp backoff_setting(%State{config: config}),
+    do: Keyword.get(config, :kubernetes_poll_backoff)
 
   defp polling_interval(%State{config: config}) do
     Keyword.get(config, :polling_interval, @default_polling_interval)
@@ -473,8 +507,8 @@ defmodule Cluster.Strategy.Kubernetes do
 
   defp get_namespace(_, namespace), do: namespace
 
-  @spec get_nodes(State.t()) :: [atom()]
-  defp get_nodes(%State{topology: topology, config: config, meta: meta} = state) do
+  @spec get_nodes(State.t()) :: {:ok, [atom()]} | {:error, term()}
+  defp get_nodes(%State{topology: topology, config: config} = state) do
     service_account_path =
       Keyword.get(config, :kubernetes_service_account_path, @service_account_path)
 
@@ -504,12 +538,12 @@ defmodule Cluster.Strategy.Kubernetes do
 
       {:error, reason} ->
         error(topology, "cannot configure kubernetes TLS trust: #{inspect(reason)}")
-        meta
+        {:error, {:tls_options, reason}}
     end
   end
 
   defp get_nodes(
-         %State{topology: topology, config: config, meta: meta},
+         %State{topology: topology, config: config},
          service_account_path,
          base_url,
          http_options,
@@ -555,32 +589,33 @@ defmodule Cluster.Strategy.Kubernetes do
                  namespace
                ) do
             {:ok, nodes} ->
-              format_nodes(nodes, config)
+              {:ok, format_nodes(nodes, config)}
 
             {:error, reason} ->
               error(topology, "cannot list kubernetes EndpointSlices: #{inspect(reason)}")
-              meta
+              {:error, {:endpoint_slices, reason}}
           end
         else
           query = URI.encode_query(query_params, :rfc3986)
 
           case :httpc.request(:get, {~c"#{url}?#{query}", headers}, http_options, request_options) do
             {:ok, {{_version, 200, _status}, _headers, body}} ->
-              parse_response(ip_lookup_mode, Jason.decode!(body), namespace)
-              |> format_nodes(config)
+              {:ok,
+               parse_response(ip_lookup_mode, Jason.decode!(body), namespace)
+               |> format_nodes(config)}
 
             {:ok, {{_version, 403, _status}, _headers, body}} ->
               %{"message" => msg} = Jason.decode!(body)
               warn(topology, "cannot query kubernetes (unauthorized): #{msg}")
-              []
+              {:ok, []}
 
             {:ok, {{_version, code, status}, _headers, body}} ->
               warn(topology, "cannot query kubernetes (#{code} #{status}): #{inspect(body)}")
-              meta
+              {:error, {:http_status, code}}
 
             {:error, reason} ->
               error(topology, "request to kubernetes failed!: #{inspect(reason)}")
-              meta
+              {:error, reason}
           end
         end
 
@@ -590,7 +625,7 @@ defmodule Cluster.Strategy.Kubernetes do
           "kubernetes strategy is selected, but :kubernetes_node_basename is not configured!"
         )
 
-        []
+        {:ok, []}
 
       selector == nil ->
         warn(
@@ -598,11 +633,11 @@ defmodule Cluster.Strategy.Kubernetes do
           "kubernetes strategy is selected, but :kubernetes_selector is not configured!"
         )
 
-        []
+        {:ok, []}
 
       :else ->
         warn(topology, "kubernetes strategy is selected, but is not configured!")
-        []
+        {:ok, []}
     end
   end
 
