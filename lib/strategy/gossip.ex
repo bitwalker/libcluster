@@ -20,6 +20,7 @@ defmodule Cluster.Strategy.Gossip do
   Gossip is intended for trusted networks. Encryption does not authenticate the discovery
   protocol, and anyone who can reach the gossip port can announce node names. Restrict access
   to the gossip port; configuring a secret does not make it safe to expose to untrusted senders.
+  If hosts you do not control can reach the port, use `Cluster.Strategy.AuthenticatedGossip`.
 
   Received packets are never decoded as arbitrary Erlang terms. A heartbeat must be exactly
   the map `%{node: name}` in the external term format, where `name` is a `name@host` atom of

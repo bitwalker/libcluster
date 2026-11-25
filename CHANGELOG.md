@@ -10,6 +10,12 @@
   process creates at most `max_new_node_names` (default 10,000) atoms for names the VM has not
   seen. The wire format is unchanged, so mixed-version clusters keep working. All earlier
   releases are affected.
+- Add `Cluster.Strategy.AuthenticatedGossip` for networks where untrusted hosts can reach the
+  gossip port. Heartbeats are sealed with AES-256-GCM under a key derived from `secret`, or
+  from the Erlang cookie when no secret is set, and carry a timestamp; forged, altered, stale
+  and replayed heartbeats are dropped before they create atoms or connection attempts. The
+  socket is read one datagram at a time and connection attempts run outside the receive loop.
+  It does not interoperate with `Gossip`, which remains for trusted networks.
 - Explain mixed-version worker compatibility, staged rollouts and version-scoped discovery tradeoffs (#180).
 - Explain DNS readiness, discovery retries and application-owned Mnesia bootstrap coordination (#111).
 - Document named-port Kubernetes SRV queries, per-Pod identities and bounded distribution/mesh diagnostics (#149).

@@ -343,6 +343,9 @@ You have a handful of choices with regards to cluster management out of the box:
   determine which hosts to connect to.
 - `Cluster.Strategy.Gossip`, which uses multicast UDP to form a cluster between
   nodes gossiping a heartbeat.
+- `Cluster.Strategy.AuthenticatedGossip`, which gossips like `Gossip` but only
+  accepts encrypted, authenticated heartbeats, for networks where other hosts
+  can reach the gossip port.
 - `Cluster.Strategy.Kubernetes`, which uses the Kubernetes Metadata API to query
   nodes based on a label selector and basename.
 - `Cluster.Strategy.Kubernetes.DNS`, which uses DNS to join nodes under a shared
