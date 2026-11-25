@@ -85,16 +85,11 @@ defmodule Cluster.Strategy.Gossip do
   use Cluster.Strategy
   import Cluster.Logger
 
+  alias Cluster.Strategy.Gossip.Socket
   alias Cluster.Strategy.State
 
-  @default_port 45892
-  @default_addr {0, 0, 0, 0}
-  @default_multicast_addr {233, 252, 1, 32}
   @default_max_new_node_names 10_000
   @max_atom_characters 255
-  @sol_socket 0xFFFF
-  @so_reuseport 0x0200
-  @windows_so_reuseaddr 0x0004
 
   def start_link(args) do
     GenServer.start_link(__MODULE__, args)
@@ -102,63 +97,17 @@ defmodule Cluster.Strategy.Gossip do
 
   @impl true
   def init([%State{config: config} = state]) do
-    port = Keyword.get(config, :port, @default_port)
-
-    ip =
-      config
-      |> Keyword.get(:if_addr, @default_addr)
-      |> sanitize_ip()
-
     max_new_node_names = max_new_node_names!(config)
-    broadcast_only? = Keyword.get(config, :broadcast_only, false)
-    ttl = Keyword.get(config, :multicast_ttl, 1)
 
-    multicast_if = Keyword.get(config, :multicast_if)
-
-    multicast_addr =
-      config
-      |> Keyword.get(:multicast_addr, @default_multicast_addr)
-      |> sanitize_ip()
-
-    multicast_opts =
-      cond do
-        broadcast_only? ->
-          []
-
-        multicast_if != nil ->
-          [
-            multicast_if: sanitize_ip(multicast_if),
-            multicast_ttl: ttl,
-            multicast_loop: true,
-            add_membership: {multicast_addr, sanitize_ip(multicast_if)}
-          ]
-
-        :else ->
-          [
-            multicast_ttl: ttl,
-            multicast_loop: true,
-            add_membership: {multicast_addr, {0, 0, 0, 0}}
-          ]
-      end
-
-    options =
-      [
-        :binary,
-        active: true,
-        ip: ip,
-        reuseaddr: true,
-        broadcast: true
-      ] ++ multicast_opts ++ reuse_port()
-
-    case :gen_udp.open(port, options) do
-      {:ok, socket} ->
+    case Socket.open(config, true) do
+      {:ok, socket, multicast_addr, port} ->
         secret = Keyword.get(config, :secret, nil)
         meta = {multicast_addr, port, socket, secret, max_new_node_names}
         state = %State{state | :meta => meta}
         {:ok, state, {:continue, nil}}
 
-      {:error, reason} ->
-        {:stop, {:udp_open_failed, reason, [port: port, if_addr: ip]}}
+      {:error, reason, context} ->
+        {:stop, {:udp_open_failed, reason, context}}
     end
   end
 
@@ -170,32 +119,6 @@ defmodule Cluster.Strategy.Gossip do
       other ->
         raise ArgumentError,
               "expected :max_new_node_names to be a non-negative integer, got: #{inspect(other)}"
-    end
-  end
-
-  defp reuse_port() do
-    case :os.type() do
-      {:unix, os_name} when os_name in [:darwin, :freebsd, :openbsd, :netbsd] ->
-        [{:raw, @sol_socket, @so_reuseport, <<1::native-32>>}]
-
-      {:win32, _} ->
-        # Set the native option explicitly: the inet driver's cached Windows
-        # reuse flags can suppress setsockopt even when the OS option is unset.
-        [{:raw, @sol_socket, @windows_so_reuseaddr, <<1::native-32>>}]
-
-      _ ->
-        []
-    end
-  end
-
-  defp sanitize_ip(input) do
-    case input do
-      {_a, _b, _c, _d} = ip ->
-        ip
-
-      ip when is_binary(ip) ->
-        {:ok, addr} = :inet.parse_ipv4_address(~c"#{ip}")
-        addr
     end
   end
 
