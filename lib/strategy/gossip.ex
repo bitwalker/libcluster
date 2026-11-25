@@ -18,9 +18,19 @@ defmodule Cluster.Strategy.Gossip do
   as nodes not sharing the same encryption key will not be connected.
 
   Gossip is intended for trusted networks. Encryption does not authenticate the discovery
-  protocol, and discovery accepts previously unknown node names as Erlang atoms. Restrict access
+  protocol, and anyone who can reach the gossip port can announce node names. Restrict access
   to the gossip port; configuring a secret does not make it safe to expose to untrusted senders.
-  Malformed packets are ignored. Compressed external terms are not part of the wire format.
+
+  Received packets are never decoded as arbitrary Erlang terms. A heartbeat must be exactly
+  the map `%{node: name}` in the external term format, where `name` is a `name@host` atom of
+  at most 255 characters; anything else is ignored without creating atoms or other terms.
+
+  Atoms are never garbage collected, so each strategy process creates at most
+  `max_new_node_names` atoms (10,000 by default) for node names the VM has not seen before.
+  Once that allowance is spent, a warning is logged and heartbeats naming unknown nodes are
+  ignored until the strategy restarts; nodes whose names already exist as atoms, including
+  every node that has connected to this one, are still discovered. Set it to `0` to accept
+  only names that already exist as atoms.
 
   You may configure the multicast interface, multicast address, the interface address to bind to, the port,
   the TTL of the packets and the optional secret using the following settings:
@@ -35,7 +45,8 @@ defmodule Cluster.Strategy.Gossip do
               multicast_if: "192.168.1.1",
               multicast_addr: "233.252.1.32",
               multicast_ttl: 1,
-              secret: "somepassword"]]]
+              secret: "somepassword",
+              max_new_node_names: 10_000]]]
 
   A TTL of 1 will limit packets to the local network, and is the default TTL.
 
@@ -79,6 +90,8 @@ defmodule Cluster.Strategy.Gossip do
   @default_port 45892
   @default_addr {0, 0, 0, 0}
   @default_multicast_addr {233, 252, 1, 32}
+  @default_max_new_node_names 10_000
+  @max_atom_characters 255
   @sol_socket 0xFFFF
   @so_reuseport 0x0200
   @windows_so_reuseaddr 0x0004
@@ -96,6 +109,7 @@ defmodule Cluster.Strategy.Gossip do
       |> Keyword.get(:if_addr, @default_addr)
       |> sanitize_ip()
 
+    max_new_node_names = max_new_node_names!(config)
     broadcast_only? = Keyword.get(config, :broadcast_only, false)
     ttl = Keyword.get(config, :multicast_ttl, 1)
 
@@ -139,11 +153,23 @@ defmodule Cluster.Strategy.Gossip do
     case :gen_udp.open(port, options) do
       {:ok, socket} ->
         secret = Keyword.get(config, :secret, nil)
-        state = %State{state | :meta => {multicast_addr, port, socket, secret}}
+        meta = {multicast_addr, port, socket, secret, max_new_node_names}
+        state = %State{state | :meta => meta}
         {:ok, state, {:continue, nil}}
 
       {:error, reason} ->
         {:stop, {:udp_open_failed, reason, [port: port, if_addr: ip]}}
+    end
+  end
+
+  defp max_new_node_names!(config) do
+    case Keyword.get(config, :max_new_node_names, @default_max_new_node_names) do
+      max when is_integer(max) and max >= 0 ->
+        max
+
+      other ->
+        raise ArgumentError,
+              "expected :max_new_node_names to be a non-negative integer, got: #{inspect(other)}"
     end
   end
 
@@ -178,7 +204,7 @@ defmodule Cluster.Strategy.Gossip do
   def handle_continue(_, state), do: handle_info(:heartbeat, state)
 
   @impl true
-  def handle_info(:heartbeat, %State{meta: {multicast_addr, port, socket, _}} = state) do
+  def handle_info(:heartbeat, %State{meta: {multicast_addr, port, socket, _, _}} = state) do
     debug(state.topology, "heartbeat")
     :gen_udp.send(socket, multicast_addr, port, heartbeat(node(), state))
     Process.send_after(self(), :heartbeat, :rand.uniform(5_000))
@@ -188,22 +214,20 @@ defmodule Cluster.Strategy.Gossip do
   # Handle received heartbeats
   def handle_info(
         {:udp, _socket, _ip, _port, <<"heartbeat::", _::binary>> = packet},
-        %State{meta: {_, _, _, secret}} = state
+        %State{meta: {_, _, _, secret, _}} = state
       )
       when is_nil(secret) do
-    handle_heartbeat(state, packet)
-    {:noreply, state}
+    {:noreply, handle_heartbeat(state, packet)}
   end
 
   def handle_info(
         {:udp, _socket, _ip, _port, <<iv::binary-size(16)>> <> ciphertext},
-        %State{meta: {_, _, _, secret}} = state
+        %State{meta: {_, _, _, secret, _}} = state
       )
       when is_binary(secret) do
     case decrypt(state, ciphertext, secret, iv) do
       {:ok, plaintext} ->
-        handle_heartbeat(state, plaintext)
-        {:noreply, state}
+        {:noreply, handle_heartbeat(state, plaintext)}
 
       _ ->
         {:noreply, state}
@@ -214,12 +238,12 @@ defmodule Cluster.Strategy.Gossip do
     {:noreply, state}
   end
 
-  def handle_info({:udp_error, socket, reason}, %State{meta: {_, _, socket, _}} = state) do
+  def handle_info({:udp_error, socket, reason}, %State{meta: {_, _, socket, _, _}} = state) do
     warn(state.topology, "UDP receive error: #{inspect(reason)}")
     resume_socket(socket, state)
   end
 
-  def handle_info({:udp_closed, socket}, %State{meta: {_, _, socket, _}} = state) do
+  def handle_info({:udp_closed, socket}, %State{meta: {_, _, socket, _, _}} = state) do
     resume_socket(socket, state)
   end
 
@@ -233,18 +257,18 @@ defmodule Cluster.Strategy.Gossip do
   end
 
   @impl true
-  def terminate(_reason, %State{meta: {_, _, socket, _}}) do
+  def terminate(_reason, %State{meta: {_, _, socket, _, _}}) do
     :gen_udp.close(socket)
     :ok
   end
 
   # Construct iodata representing packet to send
-  defp heartbeat(node_name, %State{meta: {_, _, _, secret}})
+  defp heartbeat(node_name, %State{meta: {_, _, _, secret, _}})
        when is_nil(secret) do
     ["heartbeat::", :erlang.term_to_binary(%{node: node_name})]
   end
 
-  defp heartbeat(node_name, %State{meta: {_, _, _, secret}} = state) when is_binary(secret) do
+  defp heartbeat(node_name, %State{meta: {_, _, _, secret, _}} = state) when is_binary(secret) do
     message = "heartbeat::" <> :erlang.term_to_binary(%{node: node_name})
     {:ok, iv, msg} = encrypt(state, message, secret)
 
@@ -255,42 +279,90 @@ defmodule Cluster.Strategy.Gossip do
   # is connected to us, and if not, we connect to it.
   # If the connection fails, it's likely because the cookie
   # is different, and thus a node we can ignore
-  @spec handle_heartbeat(State.t(), binary) :: :ok
+  @spec handle_heartbeat(State.t(), binary) :: State.t()
   defp handle_heartbeat(%State{} = state, <<"heartbeat::", rest::binary>>) do
-    self = node()
-    connect = state.connect
-    list_nodes = state.list_nodes
-    topology = state.topology
-
-    case decode_heartbeat(rest) do
-      {:ok, %{node: ^self}} ->
-        :ok
-
-      {:ok, %{node: n}} when is_atom(n) ->
-        debug(state.topology, "received heartbeat from #{n}")
-        Cluster.Strategy.connect_nodes(topology, connect, list_nodes, [n])
-        :ok
-
-      _ ->
-        :ok
+    with {:ok, name} <- decode_heartbeat(rest),
+         false <- name == Atom.to_string(node()),
+         {:ok, n, state} <- node_name_to_atom(state, name) do
+      debug(state.topology, "received heartbeat from #{n}")
+      Cluster.Strategy.connect_nodes(state.topology, state.connect, state.list_nodes, [n])
+      state
+    else
+      _ -> state
     end
   end
 
-  defp handle_heartbeat(_state, _packet) do
-    :ok
+  defp handle_heartbeat(state, _packet) do
+    state
   end
 
-  # Our sender always uses uncompressed external terms. Reject compression before decoding
-  # so a small datagram cannot request an unbounded decompression allocation.
-  defp decode_heartbeat(<<131, 80, _::binary>>), do: :error
-
-  defp decode_heartbeat(packet) do
-    case :erlang.binary_to_term(packet, [:used]) do
-      {term, used} when used == byte_size(packet) -> {:ok, term}
+  # The payload comes from whoever can reach the socket, so it is matched against the one
+  # shape our sender produces (the external term format of `%{node: name}`) and never handed
+  # to `:erlang.binary_to_term/1,2`. Decoding arbitrary terms would intern every atom the
+  # sender names, and the `:safe` option cannot be used because a newly discovered node
+  # name is, by definition, an atom this node may not have yet.
+  @spec decode_heartbeat(binary) :: {:ok, String.t()} | :error
+  defp decode_heartbeat(<<131, 116, 1::32, rest::binary>>) do
+    with {:ok, "node", rest} <- decode_atom_text(rest),
+         {:ok, name, <<>>} <- decode_atom_text(rest),
+         true <- node_name?(name) do
+      {:ok, name}
+    else
       _ -> :error
     end
+  end
+
+  defp decode_heartbeat(_packet), do: :error
+
+  # SMALL_ATOM_UTF8_EXT and ATOM_UTF8_EXT
+  defp decode_atom_text(<<119, size, text::binary-size(size), rest::binary>>),
+    do: {:ok, text, rest}
+
+  defp decode_atom_text(<<118, size::16, text::binary-size(size), rest::binary>>),
+    do: {:ok, text, rest}
+
+  # ATOM_EXT and SMALL_ATOM_EXT carry Latin-1 text; OTP releases before 26 send them.
+  defp decode_atom_text(<<100, size::16, text::binary-size(size), rest::binary>>),
+    do: {:ok, :unicode.characters_to_binary(text, :latin1), rest}
+
+  defp decode_atom_text(<<115, size, text::binary-size(size), rest::binary>>),
+    do: {:ok, :unicode.characters_to_binary(text, :latin1), rest}
+
+  defp decode_atom_text(_packet), do: :error
+
+  # Distribution only accepts names with exactly one "@" between a name and a host.
+  defp node_name?(name) do
+    with true <- String.valid?(name),
+         true <- String.length(name) <= @max_atom_characters,
+         [node_name, host] when node_name != "" and host != "" <-
+           :binary.split(name, "@", [:global]) do
+      true
+    else
+      _ -> false
+    end
+  end
+
+  # Atoms are never collected, so only a bounded number of names this node has not seen
+  # before are turned into atoms. Names that already exist cost nothing and always resolve.
+  defp node_name_to_atom(%State{} = state, name) do
+    {:ok, String.to_existing_atom(name), state}
   rescue
-    ArgumentError -> :error
+    ArgumentError -> new_node_name_to_atom(state, name)
+  end
+
+  defp new_node_name_to_atom(%State{meta: {_, _, _, _, 0}}, _name), do: :error
+
+  defp new_node_name_to_atom(%State{meta: meta} = state, name) do
+    remaining = elem(meta, 4) - 1
+
+    if remaining == 0 do
+      warn(
+        state.topology,
+        "max_new_node_names reached; ignoring heartbeats from node names not already known"
+      )
+    end
+
+    {:ok, String.to_atom(name), %State{state | meta: put_elem(meta, 4, remaining)}}
   end
 
   defp encrypt(_state, plaintext, password) do

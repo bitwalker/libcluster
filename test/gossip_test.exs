@@ -48,7 +48,7 @@ defmodule Cluster.Strategy.GossipTest do
       }
 
       first = start_supervised!({Gossip, [first_state]}, id: :first)
-      %State{meta: {_, _, socket, _}} = :sys.get_state(first)
+      %State{meta: {_, _, socket, _, _}} = :sys.get_state(first)
       {:ok, port} = :inet.port(socket)
 
       if match?({:win32, _}, :os.type()) do
@@ -115,7 +115,7 @@ defmodule Cluster.Strategy.GossipTest do
       }
 
       server = start_supervised!({Gossip, [initial]})
-      %State{meta: {_, _, socket, _}} = :sys.get_state(server)
+      %State{meta: {_, _, socket, _, _}} = :sys.get_state(server)
       {:ok, port} = :inet.port(socket)
       :ok = :inet.setopts(socket, active: false)
 
@@ -126,7 +126,7 @@ defmodule Cluster.Strategy.GossipTest do
         end
 
       send(server, message)
-      assert %State{meta: {_, _, ^socket, _}} = :sys.get_state(server)
+      assert %State{meta: {_, _, ^socket, _, _}} = :sys.get_state(server)
       assert {:ok, [active: true]} = :inet.getopts(socket, [:active])
 
       {:ok, sender} = :gen_udp.open(0, [:binary, active: false])
@@ -140,7 +140,7 @@ defmodule Cluster.Strategy.GossipTest do
       {:ok, {_, destination}} = :inet.sockname(sender)
 
       :sys.replace_state(server, fn current ->
-        %{current | meta: {{127, 0, 0, 1}, destination, socket, nil}}
+        %{current | meta: {{127, 0, 0, 1}, destination, socket, nil, 10}}
       end)
 
       send(server, :heartbeat)
@@ -151,7 +151,7 @@ defmodule Cluster.Strategy.GossipTest do
   test "stops with a useful reason when the UDP socket cannot be rearmed" do
     {:ok, socket} = :gen_udp.open(0, active: false)
     :ok = :gen_udp.close(socket)
-    current = %{state() | meta: {{127, 0, 0, 1}, 12345, socket, nil}}
+    current = %{state() | meta: {{127, 0, 0, 1}, 12345, socket, nil, 10}}
 
     assert {:stop, {:udp_rearm_failed, reason}, ^current} =
              Gossip.handle_info({:udp_closed, socket}, current)
@@ -225,6 +225,138 @@ defmodule Cluster.Strategy.GossipTest do
     assert_receive {:connect, ^node}
   end
 
+  describe "untrusted heartbeat payloads" do
+    test "never interns atoms from a term that is not a heartbeat" do
+      names = for _ <- 1..50, do: fresh_name("")
+      atoms = for name <- names, into: <<>>, do: <<119, byte_size(name), name::binary>>
+      packet = <<"heartbeat::", 131, 108, length(names)::32, atoms::binary, 106>>
+
+      assert {:noreply, _} = Gossip.handle_info({:udp, nil, nil, 0, packet}, state())
+      refute_interned(names)
+      refute_receive {:connect, _}
+    end
+
+    test "never interns atoms carried alongside a node entry" do
+      extra = fresh_name("")
+      peer = "peer@127.0.0.2"
+
+      packet =
+        <<"heartbeat::", 131, 116, 2::32, 119, 4, "node", 119, byte_size(peer), peer::binary, 119,
+          byte_size(extra), extra::binary, 97, 1>>
+
+      assert {:noreply, _} = Gossip.handle_info({:udp, nil, nil, 0, packet}, state())
+      refute_interned([extra])
+      refute_receive {:connect, _}
+    end
+
+    test "never interns atoms from an encrypted term that is not a heartbeat" do
+      names = for _ <- 1..50, do: fresh_name("")
+      atoms = for name <- names, into: <<>>, do: <<119, byte_size(name), name::binary>>
+      packet = <<"heartbeat::", 131, 108, length(names)::32, atoms::binary, 106>>
+      encrypted_state = state("password")
+
+      assert {:noreply, _} =
+               Gossip.handle_info(
+                 {:udp, nil, nil, 0, encrypt(packet, "password")},
+                 encrypted_state
+               )
+
+      refute_interned(names)
+      refute_receive {:connect, _}
+    end
+
+    test "never interns a node value that is not a node name" do
+      names = [
+        fresh_name(""),
+        fresh_name("@"),
+        "@" <> fresh_name(""),
+        fresh_name("@127.0.0.2@127.0.0.3"),
+        fresh_name("@" <> String.duplicate("a", 255))
+      ]
+
+      for name <- names do
+        packet =
+          <<"heartbeat::", 131, 116, 1::32, 119, 4, "node", 118, byte_size(name)::16,
+            name::binary>>
+
+        assert {:noreply, _} = Gossip.handle_info({:udp, nil, nil, 0, packet}, state())
+      end
+
+      refute_interned(names)
+      refute_receive {:connect, _}
+    end
+
+    test "accepts the Latin-1 atom encodings sent by OTP releases before 26" do
+      for {tag, size_bits} <- [{100, 16}, {115, 8}] do
+        latin1 = <<"caf", 0xE9>> <> fresh_name("@127.0.0.2")
+        utf8 = :unicode.characters_to_binary(latin1, :latin1)
+
+        packet =
+          <<"heartbeat::", 131, 116, 1::32, tag, 4::size(size_bits), "node", tag,
+            byte_size(latin1)::size(size_bits), latin1::binary>>
+
+        assert {:noreply, _} = Gossip.handle_info({:udp, nil, nil, 0, packet}, state())
+        node = String.to_existing_atom(utf8)
+        assert_receive {:connect, ^node}
+      end
+    end
+
+    test "stops interning unknown node names once the allowance is spent" do
+      [first, second, third] = for _ <- 1..3, do: fresh_name()
+
+      log =
+        capture_log(fn ->
+          spent =
+            Enum.reduce([first, second, third, third], state(nil, 2), fn name, current ->
+              assert {:noreply, next} =
+                       Gossip.handle_info({:udp, nil, nil, 0, heartbeat_for(name)}, current)
+
+              next
+            end)
+
+          assert %State{meta: {_, _, _, _, 0}} = spent
+
+          for name <- [first, second] do
+            node = String.to_existing_atom(name)
+            assert_receive {:connect, ^node}
+          end
+
+          refute_interned([third])
+          refute_receive {:connect, _}
+
+          # Names this node already knows remain discoverable.
+          known = heartbeat(%{node: :"peer@127.0.0.2"})
+          assert {:noreply, ^spent} = Gossip.handle_info({:udp, nil, nil, 0, known}, spent)
+          assert_receive {:connect, :"peer@127.0.0.2"}
+        end)
+
+      assert [_before, _after] = String.split(log, "max_new_node_names")
+    end
+
+    test "does not spend the allowance on names this node already knows" do
+      initial = state(nil, 1)
+      packet = heartbeat(%{node: :"peer@127.0.0.2"})
+
+      assert {:noreply, ^initial} = Gossip.handle_info({:udp, nil, nil, 0, packet}, initial)
+      assert_receive {:connect, :"peer@127.0.0.2"}
+    end
+
+    test "reads the allowance from max_new_node_names" do
+      base = [port: 0, if_addr: "127.0.0.1", multicast_addr: "127.0.0.1", broadcast_only: true]
+
+      for {config, expected} <- [{base, 10_000}, {[max_new_node_names: 0] ++ base, 0}] do
+        assert {:ok, %State{meta: {_, _, socket, _, ^expected}}, _} =
+                 Gossip.init([%{state() | config: config}])
+
+        :gen_udp.close(socket)
+      end
+
+      assert_raise ArgumentError, ~r/max_new_node_names/, fn ->
+        Gossip.init([%{state() | config: [max_new_node_names: :infinity] ++ base}])
+      end
+    end
+  end
+
   test "ignores malformed encrypted packets and then accepts a valid heartbeat" do
     secret = "password"
     encrypted_state = state(secret)
@@ -266,16 +398,31 @@ defmodule Cluster.Strategy.GossipTest do
     refute_receive {:connect, _}
   end
 
-  defp state(secret \\ nil) do
+  defp state(secret \\ nil, allowance \\ 10) do
     %State{
       topology: :gossip,
-      meta: {nil, nil, nil, secret},
+      meta: {nil, nil, nil, secret, allowance},
       connect: {Cluster.Nodes, :connect, [self()]},
       list_nodes: {Cluster.Nodes, :list_nodes, [[]]}
     }
   end
 
   defp heartbeat(term), do: "heartbeat::" <> :erlang.term_to_binary(term)
+
+  defp heartbeat_for(name) when is_binary(name) do
+    <<"heartbeat::", 131, 116, 1::32, 119, 4, "node", 119, byte_size(name), name::binary>>
+  end
+
+  # A name no atom exists for yet. It stays a string so the test does not intern it.
+  defp fresh_name(suffix \\ "@127.0.0.2") do
+    "gossip-fresh-#{System.unique_integer([:positive])}#{suffix}"
+  end
+
+  defp refute_interned(names) do
+    for name <- names do
+      assert_raise ArgumentError, fn -> String.to_existing_atom(name) end
+    end
+  end
 
   defp encrypt(message, secret) do
     padding = 16 - rem(byte_size(message), 16)

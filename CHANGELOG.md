@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- **Security:** Gossip no longer passes received datagrams to `:erlang.binary_to_term/1,2`.
+  Anyone able to reach the gossip port could send a term naming thousands of new atoms per
+  datagram and exhaust the atom table, aborting the VM; with a `secret`, the same was possible
+  one atom per datagram by altering a captured heartbeat. Heartbeats are now matched against
+  the exact `%{node: name}` encoding, `name` must be a `name@host` node name, and each strategy
+  process creates at most `max_new_node_names` (default 10,000) atoms for names the VM has not
+  seen. The wire format is unchanged, so mixed-version clusters keep working. All earlier
+  releases are affected.
 - Explain mixed-version worker compatibility, staged rollouts and version-scoped discovery tradeoffs (#180).
 - Explain DNS readiness, discovery retries and application-owned Mnesia bootstrap coordination (#111).
 - Document named-port Kubernetes SRV queries, per-Pod identities and bounded distribution/mesh diagnostics (#149).
